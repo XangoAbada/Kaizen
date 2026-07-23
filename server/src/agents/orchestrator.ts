@@ -90,17 +90,21 @@ function startReview(task: Task, implementerSummary: string): TaskRun {
     projectId: project.id,
     taskId: task.id,
     role: 'reviewer',
-    prepare: () => ({
-      cwd: project.path,
-      permissionMode: 'plan',
-      prompt: reviewerPrompt({
-        taskTitle: task.title,
-        taskDescription: task.description,
-        implementerSummary,
-        baseCommit: task.baseCommit,
-        isGit: project.isGit,
-      }),
-    }),
+    prepare: () => {
+      const fresh = tasksRepo.get(task.id) ?? task;
+      return {
+        cwd: project.path,
+        permissionMode: 'plan',
+        prompt: reviewerPrompt({
+          taskTitle: fresh.title,
+          taskDescription: fresh.description,
+          feedback: fresh.feedback,
+          implementerSummary,
+          baseCommit: fresh.baseCommit,
+          isGit: project.isGit,
+        }),
+      };
+    },
   });
 }
 

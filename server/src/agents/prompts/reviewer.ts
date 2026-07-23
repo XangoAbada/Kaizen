@@ -1,8 +1,10 @@
+import type { FeedbackEntry } from '@kaizen/shared';
 import { PREAMBLE, jsonSchemaBlock } from './common.js';
 
 export function reviewerPrompt(input: {
   taskTitle: string;
   taskDescription: string;
+  feedback: FeedbackEntry[];
   implementerSummary: string;
   baseCommit: string | null;
   isGit: boolean;
@@ -22,6 +24,15 @@ You are reviewing a change made by another agent in the current working director
 **${input.taskTitle}**
 
 ${input.taskDescription}
+
+${
+  input.feedback.length
+    ? `## Later feedback and findings (chronological) — these OVERRIDE the original task description wherever they conflict
+${input.feedback.map((f) => `- [${f.source} @ ${f.createdAt}] ${f.text}`).join('\n')}
+
+Judge the change against the LATEST requirements (original description as amended by the feedback above).`
+    : ''
+}
 
 ## Implementer's report
 ${input.implementerSummary || '(none provided)'}
