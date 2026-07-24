@@ -56,7 +56,10 @@ export function TaskDrawer({
     setError(null);
     transition.mutate(
       { taskId, to, feedback: fb },
-      { onError: (e) => setError(e instanceof ApiError ? e.message : String(e)) },
+      {
+        onSuccess: () => onClose(),
+        onError: (e) => setError(e instanceof ApiError ? e.message : String(e)),
+      },
     );
   };
 
@@ -64,7 +67,10 @@ export function TaskDrawer({
     setError(null);
     replan.mutate(
       { taskId, feedback: fb },
-      { onError: (e) => setError(e instanceof ApiError ? e.message : String(e)) },
+      {
+        onSuccess: () => onClose(),
+        onError: (e) => setError(e instanceof ApiError ? e.message : String(e)),
+      },
     );
   };
 
