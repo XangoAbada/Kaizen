@@ -4,6 +4,7 @@ import { preamble, jsonSchemaBlock } from './common.js';
 export function implementerPrompt(input: {
   taskTitle: string;
   taskDescription: string;
+  userPrompt?: string;
   feedback: FeedbackEntry[];
   knowledgeDirAbs: string | null;
   inlineDocs: { filename: string; content: string }[];
@@ -23,6 +24,11 @@ ${
 }`
     : '';
 
+  const userInstructions = input.userPrompt?.trim()
+    ? `## User instructions — HIGHEST PRIORITY (follow these above all else; they take precedence over the task description and any other guidance)
+${input.userPrompt.trim()}`
+    : '';
+
   const feedback = input.feedback.length
     ? `## Prior feedback / reviewer findings — address ALL of these
 ${input.feedback
@@ -36,6 +42,8 @@ ${input.feedback
 **${input.taskTitle}**
 
 ${input.taskDescription}
+
+${userInstructions}
 
 ${feedback}
 

@@ -75,6 +75,7 @@ export async function startImplementation(taskId: string): Promise<TaskRun> {
         prompt: implementerPrompt({
           taskTitle: fresh.title,
           taskDescription: fresh.description,
+          userPrompt: fresh.userPrompt,
           feedback: fresh.feedback,
           knowledgeDirAbs: knowledgeDir(project.id),
           inlineDocs: inlineDocs(project.id, IMPLEMENTER_INLINE_DOCS),
@@ -101,6 +102,7 @@ function startReview(task: Task, implementerSummary: string): TaskRun {
         prompt: reviewerPrompt({
           taskTitle: fresh.title,
           taskDescription: fresh.description,
+          userPrompt: fresh.userPrompt,
           feedback: fresh.feedback,
           implementerSummary,
           baseCommit: fresh.baseCommit,

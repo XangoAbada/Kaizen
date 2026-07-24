@@ -21,6 +21,7 @@ const createSchema = z.object({
   projectId: z.string(),
   title: z.string().min(1).max(300),
   description: z.string().max(20_000).optional(),
+  userPrompt: z.string().max(20_000).optional(),
 });
 
 tasksRouter.post('/', (req, res) => {
@@ -31,6 +32,7 @@ tasksRouter.post('/', (req, res) => {
     projectId: body.projectId,
     title: body.title,
     description: body.description,
+    userPrompt: body.userPrompt,
     maxAttempts: project.settings.maxAttempts,
   });
   bus.publish({ type: 'task.updated', task });
@@ -50,6 +52,7 @@ tasksRouter.get('/:id', (req, res) => {
 const patchSchema = z.object({
   title: z.string().min(1).max(300).optional(),
   description: z.string().max(20_000).optional(),
+  userPrompt: z.string().max(20_000).optional(),
   orderIndex: z.number().int().min(0).optional(),
 });
 

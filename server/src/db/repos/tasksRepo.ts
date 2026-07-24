@@ -7,6 +7,7 @@ interface Row {
   project_id: string;
   title: string;
   description: string;
+  user_prompt: string;
   status: string;
   order_index: number;
   suggestion_id: string | null;
@@ -24,6 +25,7 @@ function toTask(r: Row): Task {
     projectId: r.project_id,
     title: r.title,
     description: r.description,
+    userPrompt: r.user_prompt,
     status: r.status as TaskStatus,
     orderIndex: r.order_index,
     suggestionId: r.suggestion_id,
@@ -54,6 +56,7 @@ export const tasksRepo = {
     projectId: string;
     title: string;
     description?: string;
+    userPrompt?: string;
     suggestionId?: string | null;
     maxAttempts?: number;
   }): Task {
@@ -63,13 +66,14 @@ export const tasksRepo = {
       .get(input.projectId) as { m: number };
     const ts = now();
     db.prepare(
-      `INSERT INTO tasks (id, project_id, title, description, status, order_index, suggestion_id, max_attempts, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (id, project_id, title, description, user_prompt, status, order_index, suggestion_id, max_attempts, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'todo', ?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.projectId,
       input.title,
       input.description ?? '',
+      input.userPrompt ?? '',
       maxOrder.m + 1,
       input.suggestionId ?? null,
       input.maxAttempts ?? 3,
@@ -84,6 +88,7 @@ export const tasksRepo = {
     patch: Partial<{
       title: string;
       description: string;
+      userPrompt: string;
       status: TaskStatus;
       orderIndex: number;
       attemptCount: number;
@@ -94,10 +99,11 @@ export const tasksRepo = {
     const cur = this.get(id);
     if (!cur) return null;
     db.prepare(
-      `UPDATE tasks SET title = ?, description = ?, status = ?, order_index = ?, attempt_count = ?, base_commit = ?, feedback_json = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE tasks SET title = ?, description = ?, user_prompt = ?, status = ?, order_index = ?, attempt_count = ?, base_commit = ?, feedback_json = ?, updated_at = ? WHERE id = ?`,
     ).run(
       patch.title ?? cur.title,
       patch.description ?? cur.description,
+      patch.userPrompt ?? cur.userPrompt,
       patch.status ?? cur.status,
       patch.orderIndex ?? cur.orderIndex,
       patch.attemptCount ?? cur.attemptCount,

@@ -70,6 +70,7 @@ export interface Task {
   projectId: string;
   title: string;
   description: string;
+  userPrompt: string;
   status: TaskStatus;
   orderIndex: number;
   suggestionId: string | null;

@@ -83,6 +83,20 @@ export function useCreateTask(projectId: string) {
   });
 }
 
+export function useUpdateTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { taskId: string; userPrompt?: string; title?: string; description?: string }) => {
+      const { taskId, ...patch } = input;
+      return api.patch<Task>(`/api/tasks/${taskId}`, patch);
+    },
+    onSuccess: (_t, v) => {
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] });
+      qc.invalidateQueries({ queryKey: ['task', v.taskId] });
+    },
+  });
+}
+
 export function useTransitionTask(projectId: string) {
   const qc = useQueryClient();
   return useMutation({

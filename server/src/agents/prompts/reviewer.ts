@@ -4,6 +4,7 @@ import { preamble, jsonSchemaBlock } from './common.js';
 export function reviewerPrompt(input: {
   taskTitle: string;
   taskDescription: string;
+  userPrompt?: string;
   feedback: FeedbackEntry[];
   implementerSummary: string;
   baseCommit: string | null;
@@ -26,6 +27,13 @@ You are reviewing a change made by another agent in the current working director
 
 ${input.taskDescription}
 
+${
+  input.userPrompt?.trim()
+    ? `## User instructions — HIGHEST PRIORITY (these take precedence over the task description; the change MUST satisfy them)
+${input.userPrompt.trim()}
+`
+    : ''
+}
 ${
   input.feedback.length
     ? `## Later feedback and findings (chronological) — these OVERRIDE the original task description wherever they conflict
