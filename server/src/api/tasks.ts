@@ -86,6 +86,14 @@ tasksRouter.post('/:id/transition', async (req, res) => {
   res.json(result);
 });
 
+const replanSchema = z.object({ feedback: z.string().max(20_000).optional() });
+
+tasksRouter.post('/:id/replan', async (req, res) => {
+  const body = replanSchema.parse(req.body);
+  const task = await taskService.replan(req.params.id as string, body.feedback);
+  res.json(task);
+});
+
 tasksRouter.get('/:id/diff', async (req, res) => {
   const task = tasksRepo.get(req.params.id as string);
   if (!task) throw new HttpError(404, 'Task not found');

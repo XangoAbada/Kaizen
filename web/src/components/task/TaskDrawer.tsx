@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Project, TaskRun } from '@kaizen/shared';
-import { useQueue, useTaskDetail, useTransitionTask, useUpdateTask } from '../../api/hooks';
+import { useQueue, useReplanTask, useTaskDetail, useTransitionTask, useUpdateTask } from '../../api/hooks';
 import { api, ApiError } from '../../api/client';
 import { LiveLog } from './LiveLog';
 import { DiffViewer } from './DiffViewer';
@@ -21,8 +21,11 @@ export function TaskDrawer({
   const { data: queue } = useQueue();
   const transition = useTransitionTask(project.id);
   const updateTask = useUpdateTask(project.id);
+  const replan = useReplanTask(project.id);
   const [tab, setTab] = useState<Tab>('Details');
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [replanOpen, setReplanOpen] = useState(false);
+  const [replanText, setReplanText] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState('');
@@ -49,10 +52,18 @@ export function TaskDrawer({
     queue && [...queue.running, ...queue.queued].find((r) => r.taskId === taskId);
   const latestRun: TaskRun | undefined = runs[0];
 
-  const doTransition = (to: 'done' | 'todo' | 'in_progress', fb?: string) => {
+  const doTransition = (to: 'done' | 'todo' | 'plan' | 'in_progress', fb?: string) => {
     setError(null);
     transition.mutate(
       { taskId, to, feedback: fb },
+      { onError: (e) => setError(e instanceof ApiError ? e.message : String(e)) },
+    );
+  };
+
+  const doReplan = (fb?: string) => {
+    setError(null);
+    replan.mutate(
+      { taskId, feedback: fb },
       { onError: (e) => setError(e instanceof ApiError ? e.message : String(e)) },
     );
   };
@@ -141,6 +152,26 @@ export function TaskDrawer({
                 <p className="text-sm italic text-neutral-500">No description</p>
               )}
 
+              {(task.status === 'plan' || task.plan.trim()) && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-neutral-400">
+                    Implementation plan
+                    {task.status === 'plan' && activeRun && (
+                      <span className="ml-2 font-normal text-sky-400">· planning…</span>
+                    )}
+                  </h3>
+                  {task.plan.trim() ? (
+                    <p className="whitespace-pre-wrap rounded-lg border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
+                      {task.plan}
+                    </p>
+                  ) : (
+                    <p className="text-sm italic text-neutral-500">
+                      {activeRun ? 'The planner is working on a plan…' : 'No plan yet'}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {task.feedback.length > 0 && (
                 <div>
                   <h3 className="mb-2 text-sm font-semibold text-neutral-400">Feedback history</h3>
@@ -167,6 +198,7 @@ export function TaskDrawer({
                         {e.type === 'status_changed' && `→ ${String(e.payload.to).replace('_', ' ')}`}
                         {e.type === 'run_finished' && `run ${e.payload.role}: ${e.payload.status}`}
                         {e.type === 'reviewer_findings' && `AI review: ${e.payload.verdict}`}
+                        {e.type === 'plan_ready' && `plan ready`}
                         {e.type === 'user_feedback' && `user feedback added`}
                         {e.type === 'warning' && `⚠ ${e.payload.message}`}
                         {e.type === 'error' && `✖ ${e.payload.message}`}
@@ -215,12 +247,37 @@ export function TaskDrawer({
               </button>
             )}
             {task.status === 'todo' && !activeRun && (
-              <button
-                onClick={() => doTransition('in_progress')}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500"
-              >
-                ▶ Start implementation
-              </button>
+              <>
+                <button
+                  onClick={() => doTransition('plan')}
+                  className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium hover:bg-sky-600"
+                >
+                  🧭 Start planning
+                </button>
+                <button
+                  onClick={() => doTransition('in_progress')}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500"
+                >
+                  ▶ Start implementation
+                </button>
+              </>
+            )}
+            {task.status === 'plan' && !activeRun && (
+              <>
+                <button
+                  onClick={() => setReplanOpen((v) => !v)}
+                  className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium hover:bg-amber-600"
+                >
+                  Request changes…
+                </button>
+                <button
+                  onClick={() => doTransition('in_progress')}
+                  disabled={!task.plan.trim()}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  ✓ Accept plan → In Progress
+                </button>
+              </>
             )}
             {task.status === 'user_review' && (
               <>
@@ -239,6 +296,37 @@ export function TaskDrawer({
               </>
             )}
           </div>
+
+          {replanOpen && (
+            <div className="mt-3 rounded-lg border border-neutral-700 bg-neutral-950 p-3">
+              <textarea
+                autoFocus
+                value={replanText}
+                onChange={(e) => setReplanText(e.target.value)}
+                rows={3}
+                placeholder="What should the plan do differently? (a new planning session will run)"
+                className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm outline-none focus:border-sky-500"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setReplanOpen(false)}
+                  className="rounded-lg px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    doReplan(replanText.trim() || undefined);
+                    setReplanOpen(false);
+                    setReplanText('');
+                  }}
+                  className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium hover:bg-sky-500"
+                >
+                  Re-plan
+                </button>
+              </div>
+            </div>
+          )}
 
           {rejectOpen && (
             <div className="mt-3 rounded-lg border border-neutral-700 bg-neutral-950 p-3">

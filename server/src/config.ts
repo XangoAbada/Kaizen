@@ -13,12 +13,14 @@ export const config = {
   timeouts: {
     analyzer: 30 * 60_000,
     suggester: 15 * 60_000,
+    planner: 15 * 60_000,
     implementer: 20 * 60_000,
     reviewer: 10 * 60_000,
   },
   maxTurns: {
     analyzer: 120,
     suggester: 60,
+    planner: 60,
     implementer: 150,
     reviewer: 40,
   },

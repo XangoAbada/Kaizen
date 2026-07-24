@@ -36,7 +36,7 @@ async function main(): Promise<void> {
       continue;
     }
     const task = tasksRepo.get(run.taskId);
-    if (task && (task.status === 'in_progress' || task.status === 'ai_review')) {
+    if (task && (task.status === 'plan' || task.status === 'in_progress' || task.status === 'ai_review')) {
       tasksRepo.update(task.id, { status: 'todo' });
       taskEventsRepo.add(task.id, 'error', { message: 'Server restarted during run — task reset to TODO' });
     }

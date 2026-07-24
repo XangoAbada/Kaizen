@@ -18,6 +18,7 @@ import { ApiError } from '../../api/client';
 
 const COLUMN_LABELS: Record<TaskStatus, string> = {
   todo: 'TODO',
+  plan: 'Plan',
   in_progress: 'In Progress',
   ai_review: 'AI Review',
   user_review: 'User Review',
@@ -77,7 +78,7 @@ export function Board({ project }: { project: Project }) {
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveTask(null)}
       >
-        <div className="grid min-h-0 flex-1 grid-cols-5 gap-3">
+        <div className="grid min-h-0 flex-1 grid-cols-6 gap-3">
           {TASK_STATUSES.map((status) => (
             <Column
               key={status}
@@ -176,6 +177,7 @@ function CardBody({ task, dragging }: { task: Task; dragging?: boolean }) {
   const hasActiveRun =
     queue !== undefined &&
     [...queue.running, ...queue.queued].some((r) => r.taskId === task.id);
+  const planReady = task.status === 'plan' && !hasActiveRun && task.plan.trim().length > 0;
 
   return (
     <div
@@ -191,6 +193,11 @@ function CardBody({ task, dragging }: { task: Task; dragging?: boolean }) {
         {task.attemptCount > 0 && (
           <span className="rounded bg-neutral-700/60 px-1.5 py-0.5">
             attempt {task.attemptCount}/{task.maxAttempts}
+          </span>
+        )}
+        {planReady && (
+          <span className="rounded bg-sky-900/60 px-1.5 py-0.5 text-sky-300" title="Plan ready — awaiting acceptance">
+            plan ready
           </span>
         )}
         {task.suggestionId && <span title="Created from suggestion">💡</span>}

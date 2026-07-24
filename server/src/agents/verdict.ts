@@ -51,6 +51,13 @@ export const suggestionsOutputSchema = z.array(
 );
 export type SuggestionsOutput = z.infer<typeof suggestionsOutputSchema>;
 
+export const plannerOutputSchema = z.object({
+  plan: z.string(),
+  notes: z.string().default(''),
+  open_questions: z.array(z.string()).default([]),
+});
+export type PlannerOutput = z.infer<typeof plannerOutputSchema>;
+
 export const implementerOutputSchema = z.object({
   summary: z.string(),
   files_changed: z.array(z.string()).default([]),

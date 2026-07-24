@@ -112,6 +112,18 @@ export function useTransitionTask(projectId: string) {
   });
 }
 
+export function useReplanTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { taskId: string; feedback?: string }) =>
+      api.post<Task>(`/api/tasks/${input.taskId}/replan`, { feedback: input.feedback }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] });
+      qc.invalidateQueries({ queryKey: ['task'] });
+    },
+  });
+}
+
 export function useTaskDiff(taskId: string | null, enabled: boolean) {
   return useQuery({
     queryKey: ['diff', taskId],

@@ -12,7 +12,14 @@ interface TransitionRule {
  * The kanban UI uses it to disable illegal drops; the server enforces it (409 otherwise).
  */
 export const ALLOWED_TRANSITIONS: Record<TaskStatus, TransitionRule[]> = {
-  todo: [{ to: 'in_progress', actors: ['user'] }],
+  todo: [
+    { to: 'plan', actors: ['user'] },
+    { to: 'in_progress', actors: ['user'] },
+  ],
+  plan: [
+    { to: 'in_progress', actors: ['user'] }, // accept plan → implement
+    { to: 'todo', actors: ['user'] }, // abandon planning
+  ],
   in_progress: [
     { to: 'ai_review', actors: ['system'] },
     { to: 'todo', actors: ['system', 'user'] }, // run failed / canceled

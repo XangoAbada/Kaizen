@@ -15,6 +15,7 @@ interface Row {
   max_attempts: number;
   base_commit: string | null;
   feedback_json: string;
+  plan: string;
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +34,7 @@ function toTask(r: Row): Task {
     maxAttempts: r.max_attempts,
     baseCommit: r.base_commit,
     feedback: JSON.parse(r.feedback_json) as FeedbackEntry[],
+    plan: r.plan,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -94,12 +96,13 @@ export const tasksRepo = {
       attemptCount: number;
       baseCommit: string;
       feedback: FeedbackEntry[];
+      plan: string;
     }>,
   ): Task | null {
     const cur = this.get(id);
     if (!cur) return null;
     db.prepare(
-      `UPDATE tasks SET title = ?, description = ?, user_prompt = ?, status = ?, order_index = ?, attempt_count = ?, base_commit = ?, feedback_json = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE tasks SET title = ?, description = ?, user_prompt = ?, status = ?, order_index = ?, attempt_count = ?, base_commit = ?, feedback_json = ?, plan = ?, updated_at = ? WHERE id = ?`,
     ).run(
       patch.title ?? cur.title,
       patch.description ?? cur.description,
@@ -109,6 +112,7 @@ export const tasksRepo = {
       patch.attemptCount ?? cur.attemptCount,
       patch.baseCommit ?? cur.baseCommit,
       JSON.stringify(patch.feedback ?? cur.feedback),
+      patch.plan ?? cur.plan,
       now(),
       id,
     );

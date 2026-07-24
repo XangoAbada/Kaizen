@@ -55,9 +55,9 @@ export interface DirListing {
   entries: { name: string; path: string }[];
 }
 
-export type TaskStatus = 'todo' | 'in_progress' | 'ai_review' | 'user_review' | 'done';
+export type TaskStatus = 'todo' | 'plan' | 'in_progress' | 'ai_review' | 'user_review' | 'done';
 
-export const TASK_STATUSES: TaskStatus[] = ['todo', 'in_progress', 'ai_review', 'user_review', 'done'];
+export const TASK_STATUSES: TaskStatus[] = ['todo', 'plan', 'in_progress', 'ai_review', 'user_review', 'done'];
 
 export interface FeedbackEntry {
   source: 'user' | 'reviewer';
@@ -78,11 +78,13 @@ export interface Task {
   maxAttempts: number;
   baseCommit: string | null;
   feedback: FeedbackEntry[];
+  /** Implementation plan produced by the planner (awaiting acceptance / fed to the implementer); '' when none. */
+  plan: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export type RunRole = 'analyzer' | 'suggester' | 'implementer' | 'reviewer';
+export type RunRole = 'analyzer' | 'suggester' | 'planner' | 'implementer' | 'reviewer';
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'timeout';
 
 export interface TaskRun {
@@ -136,6 +138,7 @@ export interface TaskEvent {
     | 'run_started'
     | 'run_finished'
     | 'reviewer_findings'
+    | 'plan_ready'
     | 'user_feedback'
     | 'warning'
     | 'error';
