@@ -160,14 +160,16 @@ export function TaskDrawer({
                       <span className="ml-2 font-normal text-sky-400">· planning…</span>
                     )}
                   </h3>
-                  {task.plan.trim() ? (
+                  {task.status === 'plan' && activeRun ? (
+                    <div className="h-72 overflow-hidden rounded-lg border border-neutral-800">
+                      <LiveLog runId={activeRun.runId} live />
+                    </div>
+                  ) : task.plan.trim() ? (
                     <p className="whitespace-pre-wrap rounded-lg border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
                       {task.plan}
                     </p>
                   ) : (
-                    <p className="text-sm italic text-neutral-500">
-                      {activeRun ? 'The planner is working on a plan…' : 'No plan yet'}
-                    </p>
+                    <p className="text-sm italic text-neutral-500">No plan yet</p>
                   )}
                 </div>
               )}
