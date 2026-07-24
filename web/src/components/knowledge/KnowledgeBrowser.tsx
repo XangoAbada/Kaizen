@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Project } from '@kaizen/shared';
 import { useKnowledge, useKnowledgeDoc, useQueue } from '../../api/hooks';
 import { api, ApiError } from '../../api/client';
 import { LiveLog } from '../task/LiveLog';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 export function KnowledgeBrowser({ project }: { project: Project }) {
   const { data: docs } = useKnowledge(project.id);
@@ -12,13 +14,13 @@ export function KnowledgeBrowser({ project }: { project: Project }) {
   const { data: doc } = useKnowledgeDoc(selectedId);
   const [error, setError] = useState<string | null>(null);
   const [analyzeRunId, setAnalyzeRunId] = useState<string | null>(null);
+  const [confirmRefresh, setConfirmRefresh] = useState(false);
 
   const analyzerActive =
     queue && [...queue.running, ...queue.queued].find((r) => r.projectId === project.id && r.role === 'analyzer');
 
   const startAnalysis = async (refresh: boolean) => {
     setError(null);
-    if (refresh && !confirm('Refresh will re-explore the project and update knowledge files. Continue?')) return;
     try {
       const res = await api.post<{ runId: string }>(`/api/projects/${project.id}/analyze`, { refresh });
       setAnalyzeRunId(res.runId);
@@ -31,12 +33,24 @@ export function KnowledgeBrowser({ project }: { project: Project }) {
 
   return (
     <div className="flex h-full">
+      {confirmRefresh && (
+        <ConfirmDialog
+          title="Refresh knowledge base"
+          message="Refresh will re-explore the project and update knowledge files. Continue?"
+          confirmLabel="Refresh"
+          onCancel={() => setConfirmRefresh(false)}
+          onConfirm={() => {
+            setConfirmRefresh(false);
+            void startAnalysis(true);
+          }}
+        />
+      )}
       <aside className="w-72 shrink-0 overflow-y-auto border-r border-neutral-800 p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-400">Knowledge base</h2>
           {hasDocs && (
             <button
-              onClick={() => void startAnalysis(true)}
+              onClick={() => setConfirmRefresh(true)}
               disabled={!!analyzerActive}
               className="rounded px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 disabled:opacity-50"
               title="Re-analyze the project"
@@ -85,8 +99,10 @@ export function KnowledgeBrowser({ project }: { project: Project }) {
             <LiveLog runId={analyzeRunId} live />
           </div>
         ) : doc ? (
-          <article className="prose prose-invert prose-sm max-w-3xl [&_code]:text-emerald-300">
-            <ReactMarkdown>{doc.content.replace(/^---[\s\S]*?---\s*/, '')}</ReactMarkdown>
+          <article className="prose prose-invert prose-sm max-w-3xl [&_code]:text-emerald-300 prose-pre:bg-neutral-900 prose-pre:border prose-pre:border-neutral-800 prose-headings:scroll-mt-4 prose-a:text-sky-400">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {doc.content.replace(/^---[\s\S]*?---\s*/, '')}
+            </ReactMarkdown>
           </article>
         ) : (
           <p className="text-sm text-neutral-500">
