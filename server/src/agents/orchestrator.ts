@@ -79,6 +79,7 @@ export async function startImplementation(taskId: string): Promise<TaskRun> {
           knowledgeDirAbs: knowledgeDir(project.id),
           inlineDocs: inlineDocs(project.id, IMPLEMENTER_INLINE_DOCS),
           otherDocs: otherDocs(project.id, IMPLEMENTER_INLINE_DOCS),
+          language: project.settings.outputLanguage,
         }),
       };
     },
@@ -104,6 +105,7 @@ function startReview(task: Task, implementerSummary: string): TaskRun {
           implementerSummary,
           baseCommit: fresh.baseCommit,
           isGit: project.isGit,
+          language: project.settings.outputLanguage,
         }),
       };
     },
@@ -129,6 +131,7 @@ export function startAnalysis(project: Project, refresh: boolean): TaskRun {
         existingDocs: knowledgeRepo
           .listByProject(project.id)
           .map((d) => ({ filename: d.filename, summary: d.summary })),
+        language: project.settings.outputLanguage,
       }),
     }),
   });
@@ -151,6 +154,7 @@ export function startSuggestion(project: Project, opts: { useWebResearch: boolea
         existingTitles: suggestionsRepo.titles(project.id),
         useWebResearch: opts.useWebResearch,
         focus: opts.focus,
+        language: project.settings.outputLanguage,
       }),
     }),
   });

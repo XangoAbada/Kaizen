@@ -1,5 +1,5 @@
 import type { FeedbackEntry } from '@kaizen/shared';
-import { PREAMBLE, jsonSchemaBlock } from './common.js';
+import { preamble, jsonSchemaBlock } from './common.js';
 
 export function reviewerPrompt(input: {
   taskTitle: string;
@@ -8,6 +8,7 @@ export function reviewerPrompt(input: {
   implementerSummary: string;
   baseCommit: string | null;
   isGit: boolean;
+  language?: string;
 }): string {
   const diffInstruction = input.isGit
     ? input.baseCommit
@@ -15,7 +16,7 @@ export function reviewerPrompt(input: {
       : `Run \`git status --porcelain\` and \`git diff\` to inspect the change set.`
     : `This project is not a git repository — inspect the files the implementer reported as changed and judge them in context.`;
 
-  return `${PREAMBLE}
+  return `${preamble(input.language)}
 
 ## Mission
 You are reviewing a change made by another agent in the current working directory. You have READ-ONLY access — do not modify anything.

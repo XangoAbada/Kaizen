@@ -17,12 +17,15 @@ export interface ProjectSettings {
   maxAttempts: number;
   /** claude CLI model id to pass via --model; null = use the CLI's default model */
   model: string | null;
+  /** language code for natural-language output produced by the AI agents (e.g. 'en', 'pl') */
+  outputLanguage: string;
 }
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   permissionMode: 'acceptEdits',
   maxAttempts: 3,
   model: null,
+  outputLanguage: 'en',
 };
 
 /** Selectable claude models. `null` (not in this list) means "use the CLI default". */
@@ -30,6 +33,12 @@ export const CLAUDE_MODELS: { id: string; label: string }[] = [
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
   { id: 'claude-sonnet-5', label: 'Sonnet 5' },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+];
+
+/** Languages the AI agents can write their natural-language output in. */
+export const OUTPUT_LANGUAGES: { id: string; label: string }[] = [
+  { id: 'en', label: 'English' },
+  { id: 'pl', label: 'Polski' },
 ];
 
 /** One directory listing returned by GET /api/fs/list. */

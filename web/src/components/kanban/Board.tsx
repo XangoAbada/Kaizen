@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import { useSearchParams } from 'react-router-dom';
 import type { Project, Task, TaskStatus } from '@kaizen/shared';
 import { TASK_STATUSES, userTargets } from '@kaizen/shared';
@@ -20,6 +30,13 @@ export function Board({ project }: { project: Project }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [feedbackFor, setFeedbackFor] = useState<{ task: Task; to: TaskStatus } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Require a small drag distance before a pointer press becomes a drag, so a plain click on a card
+  // still fires onClick (opens the TaskDrawer) instead of being swallowed as a drag gesture.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -55,6 +72,7 @@ export function Board({ project }: { project: Project }) {
   return (
     <div className="flex h-full flex-col p-4">
       <DndContext
+        sensors={sensors}
         onDragStart={(e) => setActiveTask((e.active.data.current?.task as Task) ?? null)}
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveTask(null)}

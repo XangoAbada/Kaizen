@@ -1,4 +1,4 @@
-import { PREAMBLE, jsonSchemaBlock } from './common.js';
+import { preamble, jsonSchemaBlock } from './common.js';
 
 export const KNOWLEDGE_FILES = [
   '00-overview.md',
@@ -16,6 +16,7 @@ export function analyzerPrompt(input: {
   knowledgeDirAbs: string;
   refresh: boolean;
   existingDocs: { filename: string; summary: string }[];
+  language?: string;
 }): string {
   const fileList = KNOWLEDGE_FILES.map((f) => `- ${f}`).join('\n');
   const refreshBlock = input.refresh
@@ -25,7 +26,7 @@ ${input.existingDocs.map((d) => `- ${d.filename}: ${d.summary || '(no summary)'}
 Re-explore the project and UPDATE files that are stale or incomplete. Preserve content that is still accurate. Rewrite files fully rather than appending changelogs.`
     : `No knowledge base exists yet — create all files from scratch.`;
 
-  return `${PREAMBLE}
+  return `${preamble(input.language)}
 
 ## Mission
 Thoroughly analyze the application "${input.projectName}" located at the current working directory (${input.projectPath}) and build a knowledge base about it.
@@ -51,6 +52,11 @@ Rules for every file:
 title: <short human title>
 summary: <one-line summary of the file's content>
 ---
+- Immediately after the front-matter, put a single top-level heading (# H1) with the document title, then organize the body with a clear heading hierarchy (## for sections, ### for subsections).
+- Break content into sections with headings — never write long walls of text. Prefer bulleted or numbered lists over dense paragraphs, and keep paragraphs short (2-4 sentences).
+- Wrap file paths, commands, function/symbol names, env vars and config keys in \`inline code\`.
+- Put multi-line code, commands or config in fenced code blocks with a language tag (e.g. \`\`\`ts, \`\`\`bash, \`\`\`json).
+- Use GitHub-flavored markdown tables where a table fits naturally — e.g. dependencies and their roles, entry points, routes, comparisons.
 - Keep each file under ~400 lines. Be concrete: real file paths, real command names.
 - 60-improvement-notes.md should list concrete weaknesses/opportunities you noticed (this feeds a suggestion engine later).
 

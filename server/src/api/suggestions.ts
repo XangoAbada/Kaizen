@@ -41,7 +41,8 @@ suggestionsRouter.post('/', (req, res) => {
 suggestionsRouter.post('/:id/accept', (req, res) => {
   const suggestion = suggestionsRepo.get(req.params.id as string);
   if (!suggestion) throw new HttpError(404, 'Suggestion not found');
-  if (suggestion.status !== 'proposed') throw new HttpError(409, `Suggestion is already ${suggestion.status}`);
+  // Accept works from 'proposed' or 'rejected' (re-accepting a previously rejected suggestion).
+  if (suggestion.status === 'accepted') throw new HttpError(409, 'Suggestion is already accepted');
   const project = projectsRepo.get(suggestion.projectId)!;
   const task = tasksRepo.create({
     projectId: suggestion.projectId,

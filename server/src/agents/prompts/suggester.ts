@@ -1,4 +1,4 @@
-import { PREAMBLE, jsonSchemaBlock } from './common.js';
+import { preamble, jsonSchemaBlock } from './common.js';
 
 export function suggesterPrompt(input: {
   projectName: string;
@@ -8,6 +8,7 @@ export function suggesterPrompt(input: {
   existingTitles: string[];
   useWebResearch: boolean;
   focus?: string;
+  language?: string;
 }): string {
   const inline = input.inlineDocs
     .map((d) => `### ${d.filename}\n\n${d.content}`)
@@ -25,7 +26,7 @@ export function suggesterPrompt(input: {
     ? `\nDo NOT duplicate these already-existing suggestions:\n${input.existingTitles.map((t) => `- ${t}`).join('\n')}`
     : '';
 
-  return `${PREAMBLE}
+  return `${preamble(input.language)}
 
 ## Mission
 Propose improvements and new features for the application "${input.projectName}" (its source code is in the current working directory — you may open files to verify feasibility).

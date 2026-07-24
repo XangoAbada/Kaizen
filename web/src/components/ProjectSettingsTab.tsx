@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CLAUDE_MODELS, type Project, type ProjectSettings } from '@kaizen/shared';
+import { CLAUDE_MODELS, OUTPUT_LANGUAGES, type Project, type ProjectSettings } from '@kaizen/shared';
 import { useUpdateProject } from '../api/hooks';
 import { ApiError } from '../api/client';
 
@@ -50,6 +50,23 @@ export function ProjectSettingsTab({ project }: { project: Project }) {
       <p className="mb-4 text-xs text-neutral-500">
         Model passed to the <code>claude</code> CLI for this project's runs. “Default (CLI)” uses the
         model from your Claude Code login.
+      </p>
+
+      <label className="mb-1 block text-sm text-neutral-400">Output language</label>
+      <select
+        value={settings.outputLanguage}
+        onChange={(e) => set('outputLanguage', e.target.value)}
+        className={`${inputCls} mb-1`}
+      >
+        {OUTPUT_LANGUAGES.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.label}
+          </option>
+        ))}
+      </select>
+      <p className="mb-4 text-xs text-neutral-500">
+        Language the AI writes generated content in (suggestion titles/descriptions, summaries,
+        review findings). Code and JSON structure stay in English.
       </p>
 
       <label className="mb-1 block text-sm text-neutral-400">Permission mode (implementer)</label>

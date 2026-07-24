@@ -1,5 +1,5 @@
 import type { FeedbackEntry } from '@kaizen/shared';
-import { PREAMBLE, jsonSchemaBlock } from './common.js';
+import { preamble, jsonSchemaBlock } from './common.js';
 
 export function implementerPrompt(input: {
   taskTitle: string;
@@ -8,6 +8,7 @@ export function implementerPrompt(input: {
   knowledgeDirAbs: string | null;
   inlineDocs: { filename: string; content: string }[];
   otherDocs: { filename: string; summary: string }[];
+  language?: string;
 }): string {
   const kb = input.inlineDocs.length
     ? `## Project knowledge base (pre-loaded)
@@ -29,7 +30,7 @@ ${input.feedback
   .join('\n')}`
     : '';
 
-  return `${PREAMBLE}
+  return `${preamble(input.language)}
 
 ## Task to implement
 **${input.taskTitle}**
