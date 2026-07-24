@@ -15,12 +15,36 @@ export interface ProjectSettings {
   /** claude CLI permission mode for implementer runs */
   permissionMode: 'acceptEdits' | 'bypassPermissions';
   maxAttempts: number;
+  /** claude CLI model id to pass via --model; null = use the CLI's default model */
+  model: string | null;
 }
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   permissionMode: 'acceptEdits',
   maxAttempts: 3,
+  model: null,
 };
+
+/** Selectable claude models. `null` (not in this list) means "use the CLI default". */
+export const CLAUDE_MODELS: { id: string; label: string }[] = [
+  { id: 'claude-opus-4-8', label: 'Opus 4.8' },
+  { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+];
+
+/** One directory listing returned by GET /api/fs/list. */
+export interface DirListing {
+  /** absolute path that was listed */
+  path: string;
+  /** absolute path of the parent directory, or null when `path` is a filesystem root */
+  parent: string | null;
+  /** platform path separator ('\\' on Windows, '/' elsewhere) */
+  sep: string;
+  /** available drive roots (e.g. 'C:\\'); present only on Windows */
+  drives?: string[];
+  /** immediate subdirectories, sorted alphabetically */
+  entries: { name: string; path: string }[];
+}
 
 export type TaskStatus = 'todo' | 'in_progress' | 'ai_review' | 'user_review' | 'done';
 

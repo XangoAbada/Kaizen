@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProjects, useCreateProject, useDeleteProject } from '../api/hooks';
 import { ApiError } from '../api/client';
+import { FolderPicker } from '../components/FolderPicker';
 
 export function ProjectsPage() {
   const { data: projects, isLoading } = useProjects();
@@ -84,6 +85,7 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const create = useCreateProject();
 
   const submit = () => {
@@ -105,13 +107,22 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
       >
         <h2 className="mb-4 text-lg font-semibold">Add project</h2>
         <label className="mb-1 block text-sm text-neutral-400">Local folder path</label>
-        <input
-          autoFocus
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-          placeholder="C:\projects\MyApp"
-          className="mb-3 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-        />
+        <div className="mb-3 flex gap-2">
+          <input
+            autoFocus
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder="C:\projects\MyApp"
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPicker(true)}
+            className="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:border-emerald-500 hover:text-white"
+          >
+            Browse…
+          </button>
+        </div>
         <label className="mb-1 block text-sm text-neutral-400">Name (optional — defaults to folder name)</label>
         <input
           value={name}
@@ -132,6 +143,13 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
+      {showPicker && (
+        <FolderPicker
+          initialPath={path.trim() || undefined}
+          onPick={(picked) => setPath(picked)}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
     </div>
   );
 }

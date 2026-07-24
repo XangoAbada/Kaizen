@@ -6,8 +6,9 @@ import { SuggestionsTab } from '../components/suggestions/SuggestionsTab';
 import { KnowledgeBrowser } from '../components/knowledge/KnowledgeBrowser';
 import { ActivityTab } from '../components/ActivityTab';
 import { TaskDrawer } from '../components/task/TaskDrawer';
+import { ProjectSettingsTab } from '../components/ProjectSettingsTab';
 
-const TABS = ['Kanban', 'Suggestions', 'Knowledge', 'Activity'] as const;
+const TABS = ['Kanban', 'Suggestions', 'Knowledge', 'Activity', 'Settings'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
@@ -51,6 +52,7 @@ export function ProjectPage() {
         {tab === 'Suggestions' && <SuggestionsTab project={project} />}
         {tab === 'Knowledge' && <KnowledgeBrowser project={project} />}
         {tab === 'Activity' && <ActivityTab projectId={project.id} />}
+        {tab === 'Settings' && <ProjectSettingsTab project={project} />}
       </div>
 
       {openTaskId && (

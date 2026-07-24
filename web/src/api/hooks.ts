@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  DirListing,
   KnowledgeDoc,
   Project,
+  ProjectSettings,
   QueueState,
   RunOutputEntry,
   Suggestion,
@@ -28,11 +30,32 @@ export function useCreateProject() {
   });
 }
 
+export function useUpdateProject(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: { name?: string; settings?: ProjectSettings }) =>
+      api.patch<Project>(`/api/projects/${id}`, patch),
+    onSuccess: (p) => {
+      qc.setQueryData(['projects', id], p);
+      qc.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+}
+
 export function useDeleteProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/api/projects/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+  });
+}
+
+export function useBrowseDir(path: string | null) {
+  return useQuery({
+    queryKey: ['fs', path],
+    queryFn: () =>
+      api.get<DirListing>(`/api/fs/list${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+    staleTime: 30_000,
   });
 }
 

@@ -32,6 +32,7 @@ const patchSchema = z.object({
     .object({
       permissionMode: z.enum(['acceptEdits', 'bypassPermissions']),
       maxAttempts: z.number().int().min(1).max(10),
+      model: z.string().min(1).nullable(),
     })
     .optional(),
 });

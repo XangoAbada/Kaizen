@@ -10,6 +10,7 @@ export interface PreparedRun {
   cwd: string;
   permissionMode: 'acceptEdits' | 'bypassPermissions' | 'plan' | 'default';
   addDirs?: string[];
+  model?: string | null;
 }
 
 export interface RunSpec {
@@ -155,6 +156,7 @@ async function pump(): Promise<void> {
     cwd: prepared.cwd,
     prompt: prepared.prompt,
     permissionMode: prepared.permissionMode,
+    model: prepared.model,
     maxTurns: config.maxTurns[spec.role],
     timeoutMs: config.timeouts[spec.role],
     addDirs: prepared.addDirs,

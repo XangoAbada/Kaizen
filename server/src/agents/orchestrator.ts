@@ -70,6 +70,7 @@ export async function startImplementation(taskId: string): Promise<TaskRun> {
       return {
         cwd: project.path,
         permissionMode: project.settings.permissionMode,
+        model: project.settings.model,
         addDirs: [knowledgeDir(project.id)],
         prompt: implementerPrompt({
           taskTitle: fresh.title,
@@ -95,6 +96,7 @@ function startReview(task: Task, implementerSummary: string): TaskRun {
       return {
         cwd: project.path,
         permissionMode: 'plan',
+        model: project.settings.model,
         prompt: reviewerPrompt({
           taskTitle: fresh.title,
           taskDescription: fresh.description,
@@ -117,6 +119,7 @@ export function startAnalysis(project: Project, refresh: boolean): TaskRun {
     prepare: () => ({
       cwd: project.path,
       permissionMode: 'acceptEdits',
+      model: project.settings.model,
       addDirs: [knowledgeDir(project.id)],
       prompt: analyzerPrompt({
         projectName: project.name,
@@ -138,6 +141,7 @@ export function startSuggestion(project: Project, opts: { useWebResearch: boolea
     prepare: () => ({
       cwd: project.path,
       permissionMode: 'plan',
+      model: project.settings.model,
       addDirs: [knowledgeDir(project.id)],
       prompt: suggesterPrompt({
         projectName: project.name,

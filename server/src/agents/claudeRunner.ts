@@ -40,6 +40,8 @@ export interface ClaudeRunSpec {
   cwd: string;
   prompt: string;
   permissionMode: 'acceptEdits' | 'bypassPermissions' | 'plan' | 'default';
+  /** claude CLI model id passed via --model; null/undefined = use the CLI default */
+  model?: string | null;
   maxTurns: number;
   timeoutMs: number;
   addDirs?: string[];
@@ -93,6 +95,9 @@ export function startClaudeRun(spec: ClaudeRunSpec): ActiveClaudeRun {
     args.push('--dangerously-skip-permissions');
   } else if (spec.permissionMode !== 'default') {
     args.push('--permission-mode', spec.permissionMode);
+  }
+  if (spec.model) {
+    args.push('--model', spec.model);
   }
   for (const dir of spec.addDirs ?? []) {
     args.push('--add-dir', dir);

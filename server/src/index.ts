@@ -15,6 +15,7 @@ import { suggestionsRouter } from './api/suggestions.js';
 import { knowledgeRouter } from './api/knowledge.js';
 import { runsRouter } from './api/runs.js';
 import { eventsRouter } from './api/events.js';
+import { fsRouter } from './api/fs.js';
 import { initOrchestrator } from './agents/orchestrator.js';
 import { resolveClaudeCmd, claudeVersion } from './agents/claudeRunner.js';
 import { HttpError } from './services/projectService.js';
@@ -68,6 +69,7 @@ async function main(): Promise<void> {
   app.use('/api/knowledge', knowledgeRouter);
   app.use('/api/runs', runsRouter);
   app.use('/api/events', eventsRouter);
+  app.use('/api/fs', fsRouter);
 
   // serve built frontend in production
   const webDist = path.resolve(here, '..', '..', 'web', 'dist');
