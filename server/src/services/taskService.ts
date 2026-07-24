@@ -9,6 +9,21 @@ import { taskHasActiveRun } from '../agents/queue.js';
 import { gitService } from './gitService.js';
 import { HttpError } from './projectService.js';
 
+/** Best-effort removal of a task's git worktree + branch (used when abandoning: delete/archive). */
+export async function cleanupTaskWorktree(task: Task): Promise<void> {
+  if (!task.worktreePath || !task.branchName) return;
+  const project = projectsRepo.get(task.projectId);
+  if (project?.isGit) {
+    try {
+      await gitService.removeWorktree(project.path, task.worktreePath);
+      await gitService.deleteBranch(project.path, task.branchName);
+    } catch {
+      // leave orphans rather than block the delete/archive
+    }
+  }
+  tasksRepo.clearWorktree(task.id);
+}
+
 export const taskService = {
   /** User-initiated transition (the only path from the UI). */
   async transition(taskId: string, to: TaskStatus, feedback?: string): Promise<{ task: Task; warning?: string }> {
@@ -31,6 +46,30 @@ export const taskService = {
           feedback: [...task.feedback, { source: 'user', text: feedback.trim(), createdAt: new Date().toISOString() }],
         });
         taskEventsRepo.add(taskId, 'user_feedback', { text: feedback.trim() });
+      }
+    }
+
+    // On approval, merge the task's isolated branch back into the base branch and tear down the worktree.
+    // Done before flipping the status so a merge conflict leaves the task in user_review (409, not "done").
+    if (task.status === 'user_review' && to === 'done' && task.worktreePath && task.branchName) {
+      const project = projectsRepo.get(task.projectId);
+      if (project?.isGit) {
+        if (await gitService.isDirty(task.worktreePath)) {
+          await gitService.commitAll(task.worktreePath, `kaizen: ${task.title}`);
+        }
+        const res = await gitService.mergeBranch(project.path, task.branchName);
+        if (!res.ok) {
+          taskEventsRepo.add(taskId, 'warning', {
+            message: `Auto-merge of ${task.branchName} failed (conflict) — branch and worktree kept for manual resolution`,
+            conflict: res.conflict ?? '',
+          });
+          bus.publish({ type: 'task.updated', task });
+          throw new HttpError(409, `Auto-merge failed: resolve conflicts on branch ${task.branchName} manually`);
+        }
+        await gitService.removeWorktree(project.path, task.worktreePath);
+        await gitService.deleteBranch(project.path, task.branchName);
+        tasksRepo.clearWorktree(taskId);
+        taskEventsRepo.add(taskId, 'status_changed', { merged: task.branchName });
       }
     }
 

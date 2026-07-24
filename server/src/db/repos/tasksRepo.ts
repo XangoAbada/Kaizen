@@ -19,6 +19,8 @@ interface Row {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+  worktree_path: string | null;
+  branch_name: string | null;
 }
 
 function toTask(r: Row): Task {
@@ -39,6 +41,8 @@ function toTask(r: Row): Task {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     archivedAt: r.archived_at,
+    worktreePath: r.worktree_path,
+    branchName: r.branch_name,
   };
 }
 
@@ -114,6 +118,28 @@ export const tasksRepo = {
       patch.baseCommit ?? cur.baseCommit,
       JSON.stringify(patch.feedback ?? cur.feedback),
       patch.plan ?? cur.plan,
+      now(),
+      id,
+    );
+    return this.get(id);
+  },
+
+  /** Record the git worktree + branch isolating this task (bypasses `update`'s coalescing so values are set exactly). */
+  setWorktree(id: string, wt: { path: string; branch: string }): Task | null {
+    if (!this.get(id)) return null;
+    db.prepare('UPDATE tasks SET worktree_path = ?, branch_name = ?, updated_at = ? WHERE id = ?').run(
+      wt.path,
+      wt.branch,
+      now(),
+      id,
+    );
+    return this.get(id);
+  },
+
+  /** Clear the worktree/branch reference (after merge + removal). */
+  clearWorktree(id: string): Task | null {
+    if (!this.get(id)) return null;
+    db.prepare('UPDATE tasks SET worktree_path = NULL, branch_name = NULL, updated_at = ? WHERE id = ?').run(
       now(),
       id,
     );

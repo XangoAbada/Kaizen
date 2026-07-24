@@ -12,15 +12,18 @@ export function AppLayout() {
         <Link to="/" className="text-lg font-semibold tracking-wide">
           <span className="text-emerald-400">改善</span> Kaizen
         </Link>
-        <div className="text-sm text-neutral-400">
+        <div className="flex items-center gap-4 text-sm text-neutral-400">
           {runningCount > 0 && (
-            <span className="mr-3 inline-flex items-center gap-1.5 text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 text-emerald-400">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
               {runningCount} running
             </span>
           )}
           {queuedCount > 0 && <span>{queuedCount} queued</span>}
           {runningCount === 0 && queuedCount === 0 && <span>idle</span>}
+          <Link to="/settings" className="text-neutral-400 hover:text-neutral-200">
+            Settings
+          </Link>
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-auto">

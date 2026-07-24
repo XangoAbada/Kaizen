@@ -18,11 +18,15 @@ export function ProjectSettingsTab({ project }: { project: Project }) {
     setSaved(false);
   };
 
+  // >1 concurrent run needs branch/worktree isolation, so auto-branch is forced on and locked.
+  const forcedBranch = settings.maxConcurrentRuns > 1;
+  const effectiveAutoBranch = forcedBranch || settings.autoCreateBranch;
+
   const save = () => {
     setError(null);
     setSaved(false);
     update.mutate(
-      { settings },
+      { settings: { ...settings, autoCreateBranch: effectiveAutoBranch } },
       {
         onSuccess: () => setSaved(true),
         onError: (e) => setError(e instanceof ApiError ? e.message : String(e)),
@@ -91,6 +95,43 @@ export function ProjectSettingsTab({ project }: { project: Project }) {
         }}
         className={`${inputCls} mb-4`}
       />
+
+      <label className="mb-1 block text-sm text-neutral-400">Max concurrent runs (per project)</label>
+      <input
+        type="number"
+        min={1}
+        max={project.isGit ? 10 : 1}
+        value={settings.maxConcurrentRuns}
+        disabled={!project.isGit}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          const cap = project.isGit ? 10 : 1;
+          if (Number.isFinite(n)) set('maxConcurrentRuns', Math.min(cap, Math.max(1, Math.round(n))));
+        }}
+        className={`${inputCls} mb-1 disabled:opacity-50`}
+      />
+      <p className="mb-4 text-xs text-neutral-500">
+        How many of this project's tasks may run at the same time. Values above 1 require a git
+        repository and isolate each run in its own branch + worktree.
+        {!project.isGit && ' This project is not a git repository, so only 1 is allowed.'}
+      </p>
+
+      <label className="mb-1 flex items-center gap-2 text-sm text-neutral-400">
+        <input
+          type="checkbox"
+          checked={effectiveAutoBranch}
+          disabled={forcedBranch || !project.isGit}
+          onChange={(e) => set('autoCreateBranch', e.target.checked)}
+          className="h-4 w-4 accent-emerald-500 disabled:opacity-50"
+        />
+        Auto-create a git branch + worktree per task
+      </label>
+      <p className="mb-4 text-xs text-neutral-500">
+        Runs each task on its own <code>kaizen/task-…</code> branch; on approval the branch is merged
+        back and the worktree removed.
+        {forcedBranch && ' Forced on because max concurrent runs is above 1.'}
+        {!project.isGit && ' Requires a git repository.'}
+      </p>
 
       {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
       <div className="flex items-center gap-3">

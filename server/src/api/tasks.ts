@@ -5,7 +5,7 @@ import { tasksRepo } from '../db/repos/tasksRepo.js';
 import { runsRepo } from '../db/repos/runsRepo.js';
 import { taskEventsRepo } from '../db/repos/taskEventsRepo.js';
 import { projectsRepo } from '../db/repos/projectsRepo.js';
-import { taskService } from '../services/taskService.js';
+import { taskService, cleanupTaskWorktree } from '../services/taskService.js';
 import { gitService } from '../services/gitService.js';
 import { HttpError } from '../services/projectService.js';
 import { taskHasActiveRun } from '../agents/queue.js';
@@ -65,10 +65,12 @@ tasksRouter.patch('/:id', (req, res) => {
   res.json(task);
 });
 
-tasksRouter.post('/:id/archive', (req, res) => {
+tasksRouter.post('/:id/archive', async (req, res) => {
   const id = req.params.id as string;
-  if (!tasksRepo.get(id)) throw new HttpError(404, 'Task not found');
+  const existing = tasksRepo.get(id);
+  if (!existing) throw new HttpError(404, 'Task not found');
   if (taskHasActiveRun(id)) throw new HttpError(409, 'Task has an active run — cancel it first');
+  await cleanupTaskWorktree(existing);
   const task = tasksRepo.archive(id)!;
   bus.publish({ type: 'task.updated', task });
   res.json(task);
@@ -82,11 +84,12 @@ tasksRouter.post('/:id/unarchive', (req, res) => {
   res.json(task);
 });
 
-tasksRouter.delete('/:id', (req, res) => {
+tasksRouter.delete('/:id', async (req, res) => {
   const id = req.params.id as string;
   const task = tasksRepo.get(id);
   if (!task) throw new HttpError(404, 'Task not found');
   if (taskHasActiveRun(id)) throw new HttpError(409, 'Task has an active run — cancel it first');
+  await cleanupTaskWorktree(task);
   tasksRepo.delete(id);
   bus.publish({ type: 'task.deleted', taskId: id, projectId: task.projectId });
   res.status(204).end();
@@ -121,6 +124,6 @@ tasksRouter.get('/:id/diff', async (req, res) => {
   const project = projectsRepo.get(task.projectId);
   if (!project) throw new HttpError(404, 'Project not found');
   if (!project.isGit) throw new HttpError(409, 'Project is not a git repository — no diff available');
-  const diff = await gitService.diffSince(project.path, task.baseCommit);
+  const diff = await gitService.diffSince(task.worktreePath ?? project.path, task.baseCommit);
   res.type('text/plain').send(diff);
 });
