@@ -2,6 +2,8 @@ import path from 'node:path';
 import type { QueueState, RunRole, TaskRun } from '@kaizen/shared';
 import { config, runsDir } from '../config.js';
 import { runsRepo } from '../db/repos/runsRepo.js';
+import { appSettingsRepo } from '../db/repos/appSettingsRepo.js';
+import { projectsRepo } from '../db/repos/projectsRepo.js';
 import { bus } from '../events/bus.js';
 import { startClaudeRun, type ActiveClaudeRun, type ClaudeRunOutcome } from './claudeRunner.js';
 
@@ -28,7 +30,40 @@ interface Active {
 }
 
 const queued: RunSpec[] = [];
-const running = new Map<string, Active>(); // key: projectId
+const running = new Map<string, Active>(); // key: runId
+/** Slots claimed between dequeue and `running.set` (across the `await prepare()` gap), counted per project. */
+const reservedByProject = new Map<string, number>();
+
+function reservedCount(projectId: string): number {
+  return reservedByProject.get(projectId) ?? 0;
+}
+
+function reserve(projectId: string): void {
+  reservedByProject.set(projectId, reservedCount(projectId) + 1);
+}
+
+function release(projectId: string): void {
+  const n = reservedCount(projectId) - 1;
+  if (n <= 0) reservedByProject.delete(projectId);
+  else reservedByProject.set(projectId, n);
+}
+
+function totalReserved(): number {
+  let n = 0;
+  for (const v of reservedByProject.values()) n += v;
+  return n;
+}
+
+function runningCountForProject(projectId: string): number {
+  let n = 0;
+  for (const a of running.values()) if (a.spec.projectId === projectId) n++;
+  return n;
+}
+
+/** Runs occupying (or about to occupy) a per-project slot: already running plus reserved-in-flight. */
+function activeCountForProject(projectId: string): number {
+  return runningCountForProject(projectId) + reservedCount(projectId);
+}
 
 export function queueState(): QueueState {
   return {
@@ -100,7 +135,7 @@ export function cancelRun(runId: string): boolean {
 }
 
 export function isProjectBusy(projectId: string): boolean {
-  return running.has(projectId) || queued.some((s) => s.projectId === projectId);
+  return activeCountForProject(projectId) > 0 || queued.some((s) => s.projectId === projectId);
 }
 
 export function taskHasActiveRun(taskId: string): boolean {
@@ -110,16 +145,34 @@ export function taskHasActiveRun(taskId: string): boolean {
   );
 }
 
+/** True when a run of the given role is queued or running for the project. */
+export function projectHasActiveRunOfRole(projectId: string, role: RunRole): boolean {
+  return (
+    queued.some((s) => s.projectId === projectId && s.role === role) ||
+    [...running.values()].some((a) => a.spec.projectId === projectId && a.spec.role === role)
+  );
+}
+
+function perProjectLimit(projectId: string): number {
+  const project = projectsRepo.get(projectId);
+  return Math.max(1, project?.settings.maxConcurrentRuns ?? 1);
+}
+
 async function pump(): Promise<void> {
-  if (running.size >= config.maxConcurrentRuns) return;
-  const idx = queued.findIndex((s) => !running.has(s.projectId));
+  const globalMax = appSettingsRepo.getMaxConcurrentRuns();
+  if (running.size + totalReserved() >= globalMax) return;
+  // Pick the first queued run (FIFO) whose project still has a free per-project slot.
+  const idx = queued.findIndex((s) => activeCountForProject(s.projectId) < perProjectLimit(s.projectId));
   if (idx < 0) return;
   const spec = queued.splice(idx, 1)[0]!;
+  // Claim the slot immediately so a concurrent pump() (across the await below) sees it.
+  reserve(spec.projectId);
 
   let prepared: PreparedRun;
   try {
     prepared = await spec.prepare();
   } catch (e) {
+    release(spec.projectId);
     const error = `failed to prepare run: ${(e as Error).message}`;
     runsRepo.update(spec.runId, { status: 'failed', error, finishedAt: new Date().toISOString() });
     bus.publish({
@@ -168,11 +221,12 @@ async function pump(): Promise<void> {
     },
   });
 
-  running.set(spec.projectId, { spec, handle });
+  running.set(spec.runId, { spec, handle });
+  release(spec.projectId); // slot is now reflected in `running`; stop double-counting it
   publishQueue();
 
   void handle.done.then((outcome: ClaudeRunOutcome) => {
-    running.delete(spec.projectId);
+    running.delete(spec.runId);
     runsRepo.update(spec.runId, {
       status: outcome.status,
       exitCode: outcome.exitCode ?? undefined,
@@ -198,5 +252,10 @@ async function pump(): Promise<void> {
   });
 
   // try to fill remaining global slots
+  void pump();
+}
+
+/** Nudge the scheduler — e.g. after the global concurrency limit is raised in settings. */
+export function pumpQueue(): void {
   void pump();
 }

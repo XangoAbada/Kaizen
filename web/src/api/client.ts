@@ -38,5 +38,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => handle<T>(r)),
+  put: <T>(url: string, body: unknown) =>
+    fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => handle<T>(r)),
   delete: <T>(url: string) => fetch(url, { method: 'DELETE' }).then((r) => handle<T>(r)),
 };

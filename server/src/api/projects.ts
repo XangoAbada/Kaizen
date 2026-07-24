@@ -12,11 +12,16 @@ projectsRouter.get('/', (_req, res) => {
   res.json(projectsRepo.list());
 });
 
-const createSchema = z.object({ path: z.string().min(1), name: z.string().optional() });
+const createSchema = z.object({
+  path: z.string().min(1),
+  name: z.string().optional(),
+  create: z.boolean().optional(),
+  initGit: z.boolean().optional(),
+});
 
-projectsRouter.post('/', (req, res) => {
+projectsRouter.post('/', async (req, res) => {
   const body = createSchema.parse(req.body);
-  const project = projectService.register(body);
+  const project = await projectService.register(body);
   res.status(201).json(project);
 });
 
@@ -34,12 +39,19 @@ const patchSchema = z.object({
       maxAttempts: z.number().int().min(1).max(10),
       model: z.string().min(1).nullable(),
       outputLanguage: z.string().min(1),
+      maxConcurrentRuns: z.number().int().min(1).max(10),
+      autoCreateBranch: z.boolean(),
     })
     .optional(),
 });
 
 projectsRouter.patch('/:id', (req, res) => {
   const body = patchSchema.parse(req.body);
+  if (body.settings) {
+    // Parallel per-project runs require branch/worktree isolation — enforce it server-side
+    // regardless of what the client sent.
+    if (body.settings.maxConcurrentRuns > 1) body.settings.autoCreateBranch = true;
+  }
   const project = projectsRepo.update(req.params.id as string, body);
   if (!project) throw new HttpError(404, 'Project not found');
   res.json(project);
@@ -66,13 +78,18 @@ projectsRouter.post('/:id/analyze', (req, res) => {
 const suggestSchema = z.object({
   useWebResearch: z.boolean().optional(),
   focus: z.string().max(500).optional(),
+  greenfield: z.boolean().optional(),
 });
 
 projectsRouter.post('/:id/suggest', (req, res) => {
   const project = projectsRepo.get(req.params.id as string);
   if (!project) throw new HttpError(404, 'Project not found');
   const body = suggestSchema.parse(req.body ?? {});
-  const run = startSuggestion(project, { useWebResearch: body.useWebResearch ?? false, focus: body.focus });
+  const run = startSuggestion(project, {
+    useWebResearch: body.useWebResearch ?? false,
+    focus: body.focus,
+    greenfield: body.greenfield ?? false,
+  });
   res.status(202).json({ runId: run.id });
 });
 

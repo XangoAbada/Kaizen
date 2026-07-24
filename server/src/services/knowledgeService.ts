@@ -47,6 +47,16 @@ export const knowledgeService = {
     return fs.readFileSync(file, 'utf8');
   },
 
+  /** Write (or create) a knowledge doc on disk and re-index its metadata. Returns false on an invalid filename. */
+  writeDoc(projectId: string, filename: string, content: string): boolean {
+    if (!/^[\w.\-]+\.md$/.test(filename)) return false;
+    const dir = knowledgeDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, filename), content, 'utf8');
+    this.indexProject(projectId);
+    return true;
+  },
+
   /** Read a doc capped at maxBytes (for prompt injection). */
   readDocCapped(projectId: string, filename: string, maxBytes: number): string | null {
     const content = this.readDoc(projectId, filename);

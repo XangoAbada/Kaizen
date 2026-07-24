@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useProjects, useCreateProject, useDeleteProject } from '../api/hooks';
 import { ApiError } from '../api/client';
 import { FolderPicker } from '../components/FolderPicker';
@@ -7,17 +7,26 @@ import { FolderPicker } from '../components/FolderPicker';
 export function ProjectsPage() {
   const { data: projects, isLoading } = useProjects();
   const [showAdd, setShowAdd] = useState(false);
+  const [showNew, setShowNew] = useState(false);
 
   return (
     <div className="mx-auto max-w-5xl p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Projects</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500"
-        >
-          + Add project
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowNew(true)}
+            className="rounded-lg border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-600/10"
+          >
+            ✨ New app (brainstorm)
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500"
+          >
+            + Add project
+          </button>
+        </div>
       </div>
 
       {isLoading && <p className="text-neutral-400">Loading…</p>}
@@ -36,6 +45,7 @@ export function ProjectsPage() {
       </div>
 
       {showAdd && <AddProjectDialog onClose={() => setShowAdd(false)} />}
+      {showNew && <NewAppDialog onClose={() => setShowNew(false)} />}
     </div>
   );
 }
@@ -140,6 +150,92 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
           >
             {create.isPending ? 'Adding…' : 'Add'}
+          </button>
+        </div>
+      </div>
+      {showPicker && (
+        <FolderPicker
+          initialPath={path.trim() || undefined}
+          onPick={(picked) => setPath(picked)}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewAppDialog({ onClose }: { onClose: () => void }) {
+  const [path, setPath] = useState('');
+  const [name, setName] = useState('');
+  const [initGit, setInitGit] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const create = useCreateProject();
+  const navigate = useNavigate();
+
+  const submit = () => {
+    setError(null);
+    create.mutate(
+      { path: path.trim(), name: name.trim() || undefined, create: true, initGit },
+      {
+        onSuccess: (p) => {
+          onClose();
+          navigate(`/projects/${p.id}?tab=Brainstorm`);
+        },
+        onError: (e) => setError(e instanceof ApiError ? e.message : String(e)),
+      },
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-xl border border-neutral-700 bg-neutral-900 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="mb-1 text-lg font-semibold">New app — start with a brainstorm</h2>
+        <p className="mb-4 text-sm text-neutral-400">
+          Kaizen creates the folder, then you brainstorm the idea into a structured knowledge base before any code.
+        </p>
+        <label className="mb-1 block text-sm text-neutral-400">Name</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="HabitTracker"
+          className="mb-3 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+        />
+        <label className="mb-1 block text-sm text-neutral-400">Folder path (will be created)</label>
+        <div className="mb-3 flex gap-2">
+          <input
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder="C:\projects\habit-tracker"
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPicker(true)}
+            className="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 hover:border-emerald-500 hover:text-white"
+          >
+            Browse…
+          </button>
+        </div>
+        <label className="mb-4 flex items-center gap-2 text-sm text-neutral-300">
+          <input type="checkbox" checked={initGit} onChange={(e) => setInitGit(e.target.checked)} />
+          Initialize a git repository
+        </label>
+        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-neutral-400 hover:bg-neutral-800">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!path.trim() || create.isPending}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+          >
+            {create.isPending ? 'Creating…' : 'Create & brainstorm'}
           </button>
         </div>
       </div>

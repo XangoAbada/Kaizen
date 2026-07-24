@@ -1,10 +1,11 @@
 import type { Project, RunStatus, Task, TaskRun } from '@kaizen/shared';
-import { knowledgeDir } from '../config.js';
+import { knowledgeDir, worktreeDir } from '../config.js';
 import { projectsRepo } from '../db/repos/projectsRepo.js';
 import { tasksRepo } from '../db/repos/tasksRepo.js';
 import { taskEventsRepo } from '../db/repos/taskEventsRepo.js';
 import { suggestionsRepo } from '../db/repos/suggestionsRepo.js';
 import { knowledgeRepo } from '../db/repos/knowledgeRepo.js';
+import { brainstormRepo } from '../db/repos/brainstormRepo.js';
 import { bus } from '../events/bus.js';
 import { gitService } from '../services/gitService.js';
 import { knowledgeService } from '../services/knowledgeService.js';
@@ -14,7 +15,14 @@ import { suggesterPrompt } from './prompts/suggester.js';
 import { plannerPrompt } from './prompts/planner.js';
 import { implementerPrompt } from './prompts/implementer.js';
 import { reviewerPrompt } from './prompts/reviewer.js';
-import { parseVerdict, plannerOutputSchema, reviewerVerdictSchema, suggestionsOutputSchema } from './verdict.js';
+import { brainstormPrompt, BRAINSTORM_FILES } from './prompts/brainstorm.js';
+import {
+  parseVerdict,
+  plannerOutputSchema,
+  reviewerVerdictSchema,
+  suggestionsOutputSchema,
+  brainstormOutputSchema,
+} from './verdict.js';
 
 const INLINE_DOC_CAP_BYTES = 12_000;
 const IMPLEMENTER_INLINE_DOCS = ['00-overview.md', '30-tech-stack.md', '40-entry-points.md'];
@@ -22,6 +30,11 @@ const SUGGESTER_INLINE_DOCS = ['00-overview.md', '20-features.md', '60-improveme
 
 function publishTask(task: Task): void {
   bus.publish({ type: 'task.updated', task });
+}
+
+/** Working directory a task's runs execute in: its isolated worktree when present, else the project root. */
+function taskCwd(projectPath: string, task: Task): string {
+  return task.worktreePath ?? projectPath;
 }
 
 function setTaskStatus(task: Task, status: Task['status'], detail: Record<string, unknown> = {}): Task {
@@ -61,7 +74,7 @@ export function startPlanning(taskId: string): TaskRun {
     prepare: () => {
       const fresh = tasksRepo.get(task.id)!;
       return {
-        cwd: project.path,
+        cwd: taskCwd(project.path, fresh),
         permissionMode: 'plan',
         model: project.settings.model,
         addDirs: [knowledgeDir(project.id)],
@@ -92,6 +105,24 @@ export async function startImplementation(taskId: string): Promise<TaskRun> {
     const head = await gitService.revParseHead(project.path);
     if (head) tasksRepo.update(task.id, { baseCommit: head });
   }
+
+  // On the first attempt, isolate the task in its own branch + worktree when enabled.
+  // (maxConcurrentRuns > 1 requires isolation; autoCreateBranch opts in even at 1.)
+  const isolate = project.isGit && (project.settings.maxConcurrentRuns > 1 || project.settings.autoCreateBranch);
+  const withBase = tasksRepo.get(task.id)!;
+  if (isolate && !withBase.worktreePath) {
+    const wt = worktreeDir(project.id, task.id);
+    const branch = `kaizen/task-${task.id}`;
+    try {
+      await gitService.createWorktree(project.path, branch, wt, withBase.baseCommit);
+      tasksRepo.setWorktree(task.id, { path: wt, branch });
+    } catch (e) {
+      taskEventsRepo.add(task.id, 'warning', {
+        message: `Could not create git worktree — running in the main working tree: ${(e as Error).message}`,
+      });
+    }
+  }
+
   tasksRepo.update(task.id, { attemptCount: task.attemptCount + 1 });
   publishTask(tasksRepo.get(task.id)!);
 
@@ -102,7 +133,7 @@ export async function startImplementation(taskId: string): Promise<TaskRun> {
     prepare: () => {
       const fresh = tasksRepo.get(task.id)!;
       return {
-        cwd: project.path,
+        cwd: taskCwd(project.path, fresh),
         permissionMode: project.settings.permissionMode,
         model: project.settings.model,
         addDirs: [knowledgeDir(project.id)],
@@ -131,7 +162,7 @@ function startReview(task: Task, implementerSummary: string): TaskRun {
     prepare: () => {
       const fresh = tasksRepo.get(task.id) ?? task;
       return {
-        cwd: project.path,
+        cwd: taskCwd(project.path, fresh),
         permissionMode: 'plan',
         model: project.settings.model,
         prompt: reviewerPrompt({
@@ -174,7 +205,10 @@ export function startAnalysis(project: Project, refresh: boolean): TaskRun {
   });
 }
 
-export function startSuggestion(project: Project, opts: { useWebResearch: boolean; focus?: string }): TaskRun {
+export function startSuggestion(
+  project: Project,
+  opts: { useWebResearch: boolean; focus?: string; greenfield?: boolean },
+): TaskRun {
   return enqueueRun({
     projectId: project.id,
     role: 'suggester',
@@ -191,6 +225,28 @@ export function startSuggestion(project: Project, opts: { useWebResearch: boolea
         existingTitles: suggestionsRepo.titles(project.id),
         useWebResearch: opts.useWebResearch,
         focus: opts.focus,
+        greenfield: opts.greenfield,
+        language: project.settings.outputLanguage,
+      }),
+    }),
+  });
+}
+
+/** Enqueue a brainstormer run: writes/updates the greenfield knowledge base from the conversation so far. */
+export function startBrainstorm(project: Project): TaskRun {
+  return enqueueRun({
+    projectId: project.id,
+    role: 'brainstormer',
+    prepare: () => ({
+      cwd: project.path,
+      permissionMode: 'acceptEdits',
+      model: project.settings.model,
+      addDirs: [knowledgeDir(project.id)],
+      prompt: brainstormPrompt({
+        projectName: project.name,
+        knowledgeDirAbs: knowledgeDir(project.id),
+        transcript: brainstormRepo.listByProject(project.id).map((m) => ({ role: m.role, text: m.text })),
+        currentDocs: inlineDocs(project.id, [...BRAINSTORM_FILES]),
         language: project.settings.outputLanguage,
       }),
     }),
@@ -321,6 +377,32 @@ function handleSuggesterFinished(projectId: string, status: RunStatus, resultSum
   }
 }
 
+function handleBrainstormerFinished(projectId: string, status: RunStatus, resultSummary: string | null): void {
+  // Re-index whatever the agent wrote to disk so the Knowledge tab reflects it, even on partial runs.
+  knowledgeService.indexProject(projectId);
+  bus.publish({ type: 'knowledge.updated', projectId });
+
+  if (status === 'succeeded') {
+    const output = parseVerdict(brainstormOutputSchema, resultSummary ?? '');
+    const summary = output?.summary?.trim();
+    const questions = output?.open_questions?.length
+      ? `\n\nOpen questions:\n${output.open_questions.map((q) => `- ${q}`).join('\n')}`
+      : '';
+    brainstormRepo.create({
+      projectId,
+      role: 'assistant',
+      text: (summary || 'Updated the knowledge base.') + questions,
+    });
+  } else {
+    brainstormRepo.create({
+      projectId,
+      role: 'assistant',
+      text: `⚠️ The brainstorming run did not finish (${status}). Please try again.`,
+    });
+  }
+  bus.publish({ type: 'brainstorm.updated', projectId });
+}
+
 /** Wire the orchestrator to the event bus. Call once at startup. */
 export function initOrchestrator(): void {
   bus.subscribe((event) => {
@@ -343,6 +425,8 @@ export function initOrchestrator(): void {
         handleAnalyzerFinished(event.projectId, event.status);
       } else if (event.role === 'suggester') {
         handleSuggesterFinished(event.projectId, event.status, event.resultSummary);
+      } else if (event.role === 'brainstormer') {
+        handleBrainstormerFinished(event.projectId, event.status, event.resultSummary);
       }
     } catch (e) {
       console.error('[orchestrator] error handling run.finished:', e);

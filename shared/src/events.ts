@@ -54,6 +54,11 @@ export interface KnowledgeUpdatedEvent {
   projectId: string;
 }
 
+export interface BrainstormUpdatedEvent {
+  type: 'brainstorm.updated';
+  projectId: string;
+}
+
 export interface ProjectUpdatedEvent {
   type: 'project.updated';
   projectId: string;
@@ -72,5 +77,6 @@ export type KaizenEvent =
   | TaskDeletedEvent
   | SuggestionCreatedEvent
   | KnowledgeUpdatedEvent
+  | BrainstormUpdatedEvent
   | ProjectUpdatedEvent
   | QueueUpdatedEvent;

@@ -16,6 +16,7 @@ export const config = {
     planner: 15 * 60_000,
     implementer: 20 * 60_000,
     reviewer: 10 * 60_000,
+    brainstormer: 15 * 60_000,
   },
   maxTurns: {
     analyzer: 120,
@@ -23,6 +24,7 @@ export const config = {
     planner: 60,
     implementer: 150,
     reviewer: 40,
+    brainstormer: 60,
   },
 } as const;
 
@@ -36,4 +38,9 @@ export function knowledgeDir(projectId: string): string {
 
 export function runsDir(projectId: string): string {
   return path.join(projectDataDir(projectId), 'runs');
+}
+
+/** Directory holding the isolated git worktree for a task (one worktree per task). */
+export function worktreeDir(projectId: string, taskId: string): string {
+  return path.join(projectDataDir(projectId), 'worktrees', taskId);
 }

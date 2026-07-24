@@ -41,6 +41,11 @@ export function connectSse(queryClient: QueryClient): void {
         break;
       case 'knowledge.updated':
         queryClient.invalidateQueries({ queryKey: ['knowledge', event.projectId] });
+        queryClient.invalidateQueries({ queryKey: ['knowledgeDoc'] });
+        break;
+      case 'brainstorm.updated':
+        queryClient.invalidateQueries({ queryKey: ['brainstorm', event.projectId] });
+        queryClient.invalidateQueries({ queryKey: ['knowledge', event.projectId] });
         break;
       case 'project.updated':
         queryClient.invalidateQueries({ queryKey: ['projects'] });

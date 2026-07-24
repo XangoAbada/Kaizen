@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AppSettings,
+  BrainstormMessage,
   DirListing,
   KnowledgeDoc,
   Project,
@@ -25,7 +27,8 @@ export function useProject(id: string) {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { path: string; name?: string }) => api.post<Project>('/api/projects', input),
+    mutationFn: (input: { path: string; name?: string; create?: boolean; initGit?: boolean }) =>
+      api.post<Project>('/api/projects', input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
   });
 }
@@ -220,6 +223,43 @@ export function useKnowledgeDoc(docId: string | null) {
   });
 }
 
+export function useSaveKnowledgeDoc(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { docId: string; filename: string; content: string }) =>
+      api.put<KnowledgeDoc | null>(
+        `/api/knowledge/project/${projectId}/${encodeURIComponent(input.filename)}`,
+        { content: input.content },
+      ),
+    onSuccess: (_m, v) => {
+      qc.invalidateQueries({ queryKey: ['knowledge', projectId] });
+      qc.invalidateQueries({ queryKey: ['knowledgeDoc', v.docId] });
+    },
+  });
+}
+
+export function useBrainstorm(projectId: string) {
+  return useQuery({
+    queryKey: ['brainstorm', projectId],
+    queryFn: () => api.get<BrainstormMessage[]>(`/api/brainstorm/project/${projectId}`),
+  });
+}
+
+export function useSendBrainstorm(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: string) =>
+      api.post<{ runId: string }>(`/api/brainstorm/project/${projectId}`, { input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['brainstorm', projectId] }),
+  });
+}
+
+export function useGenerateBrainstormTasks(projectId: string) {
+  return useMutation({
+    mutationFn: () => api.post<{ runId: string }>(`/api/projects/${projectId}/suggest`, { greenfield: true }),
+  });
+}
+
 export function useProjectRuns(projectId: string) {
   return useQuery({
     queryKey: ['runs', projectId],
@@ -237,4 +277,16 @@ export function useRunTranscript(runId: string | null) {
 
 export function useQueue() {
   return useQuery({ queryKey: ['queue'], queryFn: () => api.get<QueueState>('/api/runs/queue') });
+}
+
+export function useAppSettings() {
+  return useQuery({ queryKey: ['appSettings'], queryFn: () => api.get<AppSettings>('/api/settings') });
+}
+
+export function useUpdateAppSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<AppSettings>) => api.patch<AppSettings>('/api/settings', patch),
+    onSuccess: (s) => qc.setQueryData(['appSettings'], s),
+  });
 }

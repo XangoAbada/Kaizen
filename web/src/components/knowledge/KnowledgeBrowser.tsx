@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Project } from '@kaizen/shared';
-import { useKnowledge, useKnowledgeDoc, useQueue } from '../../api/hooks';
+import { useKnowledge, useKnowledgeDoc, useQueue, useSaveKnowledgeDoc } from '../../api/hooks';
 import { api, ApiError } from '../../api/client';
 import { LiveLog } from '../task/LiveLog';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -15,6 +15,32 @@ export function KnowledgeBrowser({ project }: { project: Project }) {
   const [error, setError] = useState<string | null>(null);
   const [analyzeRunId, setAnalyzeRunId] = useState<string | null>(null);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const saveDoc = useSaveKnowledgeDoc(project.id);
+
+  // Leave edit mode whenever a different document is opened.
+  useEffect(() => {
+    setEditing(false);
+  }, [selectedId]);
+
+  const startEdit = () => {
+    if (!doc) return;
+    setDraft(doc.content);
+    setEditing(true);
+  };
+
+  const save = () => {
+    if (!doc) return;
+    setError(null);
+    saveDoc.mutate(
+      { docId: doc.meta.id, filename: doc.meta.filename, content: draft },
+      {
+        onSuccess: () => setEditing(false),
+        onError: (e) => setError(e instanceof ApiError ? e.message : String(e)),
+      },
+    );
+  };
 
   const analyzerActive =
     queue && [...queue.running, ...queue.queued].find((r) => r.projectId === project.id && r.role === 'analyzer');
@@ -99,11 +125,47 @@ export function KnowledgeBrowser({ project }: { project: Project }) {
             <LiveLog runId={analyzeRunId} live />
           </div>
         ) : doc ? (
-          <article className="prose prose-invert prose-sm max-w-3xl [&_code]:text-emerald-300 prose-pre:bg-neutral-900 prose-pre:border prose-pre:border-neutral-800 prose-headings:scroll-mt-4 prose-a:text-sky-400">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {doc.content.replace(/^---[\s\S]*?---\s*/, '')}
-            </ReactMarkdown>
-          </article>
+          <div className="max-w-3xl">
+            <div className="mb-3 flex items-center justify-end gap-2">
+              {editing ? (
+                <>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="rounded px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={save}
+                    disabled={saveDoc.isPending}
+                    className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    {saveDoc.isPending ? 'Saving…' : 'Save'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={startEdit}
+                  className="rounded px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800"
+                >
+                  ✎ Edit
+                </button>
+              )}
+            </div>
+            {editing ? (
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="h-[70vh] w-full resize-none rounded-lg border border-neutral-700 bg-neutral-900 p-4 font-mono text-xs text-neutral-200 outline-none focus:border-emerald-500"
+              />
+            ) : (
+              <article className="prose prose-invert prose-sm [&_code]:text-emerald-300 prose-pre:bg-neutral-900 prose-pre:border prose-pre:border-neutral-800 prose-headings:scroll-mt-4 prose-a:text-sky-400">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {doc.content.replace(/^---[\s\S]*?---\s*/, '')}
+                </ReactMarkdown>
+              </article>
+            )}
+          </div>
         ) : (
           <p className="text-sm text-neutral-500">
             {hasDocs ? 'Select a document.' : 'Run analysis to build the knowledge base.'}

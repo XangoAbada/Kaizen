@@ -13,9 +13,11 @@ import { projectsRouter } from './api/projects.js';
 import { tasksRouter } from './api/tasks.js';
 import { suggestionsRouter } from './api/suggestions.js';
 import { knowledgeRouter } from './api/knowledge.js';
+import { brainstormRouter } from './api/brainstorm.js';
 import { runsRouter } from './api/runs.js';
 import { eventsRouter } from './api/events.js';
 import { fsRouter } from './api/fs.js';
+import { settingsRouter } from './api/settings.js';
 import { initOrchestrator } from './agents/orchestrator.js';
 import { resolveClaudeCmd, claudeVersion } from './agents/claudeRunner.js';
 import { HttpError } from './services/projectService.js';
@@ -67,9 +69,11 @@ async function main(): Promise<void> {
   app.use('/api/tasks', tasksRouter);
   app.use('/api/suggestions', suggestionsRouter);
   app.use('/api/knowledge', knowledgeRouter);
+  app.use('/api/brainstorm', brainstormRouter);
   app.use('/api/runs', runsRouter);
   app.use('/api/events', eventsRouter);
   app.use('/api/fs', fsRouter);
+  app.use('/api/settings', settingsRouter);
 
   // serve built frontend in production
   const webDist = path.resolve(here, '..', '..', 'web', 'dist');

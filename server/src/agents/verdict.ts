@@ -73,6 +73,12 @@ export const analyzerOutputSchema = z.object({
 });
 export type AnalyzerOutput = z.infer<typeof analyzerOutputSchema>;
 
+export const brainstormOutputSchema = z.object({
+  summary: z.string().default(''),
+  open_questions: z.array(z.string()).default([]),
+});
+export type BrainstormOutput = z.infer<typeof brainstormOutputSchema>;
+
 export function parseVerdict<S extends z.ZodTypeAny>(schema: S, resultText: string): z.output<S> | null {
   const raw = extractLastJsonBlock(resultText);
   if (raw === null) return null;

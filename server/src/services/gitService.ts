@@ -20,9 +20,30 @@ function gitAllowFail(cwd: string, args: string[]): Promise<string> {
   });
 }
 
+/** Run git and capture exit code + both streams, never rejecting (for operations that may legitimately fail, e.g. merge). */
+function gitCapture(cwd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      args,
+      { cwd, maxBuffer: 20 * 1024 * 1024, windowsHide: true },
+      (err, stdout, stderr) => {
+        const code = err ? ((err as NodeJS.ErrnoException & { code?: number }).code ?? 1) : 0;
+        resolve({ code: typeof code === 'number' ? code : 1, stdout: stdout ?? '', stderr: stderr ?? '' });
+      },
+    );
+  });
+}
+
 export const gitService = {
   isGitRepo(dir: string): boolean {
     return fs.existsSync(path.join(dir, '.git'));
+  },
+
+  /** Initialize a new git repository in `dir` (no-op if already a repo). */
+  async initRepo(dir: string): Promise<void> {
+    if (fs.existsSync(path.join(dir, '.git'))) return;
+    await git(dir, ['init']);
   },
 
   async revParseHead(dir: string): Promise<string | null> {
@@ -58,5 +79,49 @@ export const gitService = {
       if (diff.trim()) parts.push(diff);
     }
     return parts.join('\n');
+  },
+
+  /** Name of the branch currently checked out in `dir` (null on detached HEAD or error). */
+  async currentBranch(dir: string): Promise<string | null> {
+    try {
+      const name = (await git(dir, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+      return name && name !== 'HEAD' ? name : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Create `branch` at `baseCommit` (or HEAD) and check it out into a new worktree at `worktreePath`. */
+  async createWorktree(repoDir: string, branch: string, worktreePath: string, baseCommit: string | null): Promise<void> {
+    await git(repoDir, ['worktree', 'add', '-b', branch, worktreePath, baseCommit ?? 'HEAD']);
+  },
+
+  /** Remove the worktree at `worktreePath` (force, discarding any uncommitted state there). */
+  async removeWorktree(repoDir: string, worktreePath: string): Promise<void> {
+    const res = await gitCapture(repoDir, ['worktree', 'remove', '--force', worktreePath]);
+    if (res.code !== 0) {
+      // Prune stale metadata if the directory was already gone.
+      await gitCapture(repoDir, ['worktree', 'prune']);
+    }
+  },
+
+  /** Stage and commit everything in `dir`. No-op (returns false) when the tree is clean. */
+  async commitAll(dir: string, message: string): Promise<boolean> {
+    await git(dir, ['add', '-A']);
+    const res = await gitCapture(dir, ['commit', '-m', message]);
+    return res.code === 0;
+  },
+
+  /** Merge `branch` into the branch currently checked out in `repoDir`. Aborts and reports on conflict. */
+  async mergeBranch(repoDir: string, branch: string): Promise<{ ok: boolean; conflict?: string }> {
+    const res = await gitCapture(repoDir, ['merge', '--no-ff', branch]);
+    if (res.code === 0) return { ok: true };
+    await gitCapture(repoDir, ['merge', '--abort']);
+    return { ok: false, conflict: (res.stderr || res.stdout).trim() };
+  },
+
+  /** Force-delete `branch`. */
+  async deleteBranch(repoDir: string, branch: string): Promise<void> {
+    await gitCapture(repoDir, ['branch', '-D', branch]);
   },
 };
