@@ -11,22 +11,26 @@ export function SuggestionsTab({ project }: { project: Project }) {
   const { data: suggestions } = useSuggestions(project.id);
   const { data: queue } = useQueue();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<'proposed' | 'accepted' | 'rejected'>('proposed');
+  const [filter, setFilter] = useState<'proposed' | 'accepted' | 'rejected' | 'archived'>('proposed');
   const [genOpen, setGenOpen] = useState(false);
   const [genRunId, setGenRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Suggestion | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Suggestion | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState<'accept' | 'reject' | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const suggesterRunning =
     queue && [...queue.running, ...queue.queued].some((r) => r.projectId === project.id && r.role === 'suggester');
-  const filtered = (suggestions ?? []).filter((s) => s.status === filter);
+  const filtered = (suggestions ?? []).filter((s) =>
+    filter === 'archived' ? !!s.archivedAt : s.status === filter && !s.archivedAt,
+  );
 
-  const act = async (s: Suggestion, action: 'accept' | 'reject') => {
+  const act = async (s: Suggestion, action: 'accept' | 'reject' | 'archive' | 'unarchive' | 'delete') => {
     setError(null);
     try {
-      await api.post(`/api/suggestions/${s.id}/${action}`);
+      if (action === 'delete') await api.delete(`/api/suggestions/${s.id}`);
+      else await api.post(`/api/suggestions/${s.id}/${action}`);
       void qc.invalidateQueries({ queryKey: ['suggestions', project.id] });
       void qc.invalidateQueries({ queryKey: ['tasks', project.id] });
     } catch (e) {
@@ -53,7 +57,7 @@ export function SuggestionsTab({ project }: { project: Project }) {
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex gap-1">
-          {(['proposed', 'accepted', 'rejected'] as const).map((f) => (
+          {(['proposed', 'accepted', 'rejected', 'archived'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -132,9 +136,33 @@ export function SuggestionsTab({ project }: { project: Project }) {
           suggestion={selected}
           onClose={() => setSelected(null)}
           onAct={(action) => {
+            if (action === 'delete') {
+              setDeleteConfirm(selected);
+              setSelected(null);
+              return;
+            }
             void act(selected, action);
             setSelected(null);
           }}
+        />
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          title="Delete suggestion?"
+          message={
+            <>
+              This permanently deletes <span className="font-medium text-neutral-100">{deleteConfirm.title}</span> and
+              cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            void act(deleteConfirm, 'delete');
+            setDeleteConfirm(null);
+          }}
+          onCancel={() => setDeleteConfirm(null)}
         />
       )}
 

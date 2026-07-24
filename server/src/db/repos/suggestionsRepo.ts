@@ -15,6 +15,7 @@ interface Row {
   source: string;
   task_id: string | null;
   created_at: string;
+  archived_at: string | null;
 }
 
 function toSuggestion(r: Row): Suggestion {
@@ -31,6 +32,7 @@ function toSuggestion(r: Row): Suggestion {
     source: r.source as Suggestion['source'],
     taskId: r.task_id,
     createdAt: r.created_at,
+    archivedAt: r.archived_at,
   };
 }
 
@@ -93,5 +95,21 @@ export const suggestionsRepo = {
       id,
     );
     return this.get(id);
+  },
+
+  archive(id: string): Suggestion | null {
+    if (!this.get(id)) return null;
+    db.prepare('UPDATE suggestions SET archived_at = ? WHERE id = ?').run(now(), id);
+    return this.get(id);
+  },
+
+  unarchive(id: string): Suggestion | null {
+    if (!this.get(id)) return null;
+    db.prepare('UPDATE suggestions SET archived_at = NULL WHERE id = ?').run(id);
+    return this.get(id);
+  },
+
+  delete(id: string): void {
+    db.prepare('DELETE FROM suggestions WHERE id = ?').run(id);
   },
 };

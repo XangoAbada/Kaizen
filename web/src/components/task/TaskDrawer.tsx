@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react';
 import type { Project, TaskRun } from '@kaizen/shared';
-import { useQueue, useReplanTask, useTaskDetail, useTransitionTask, useUpdateTask } from '../../api/hooks';
+import {
+  useArchiveTask,
+  useDeleteTask,
+  useQueue,
+  useReplanTask,
+  useTaskDetail,
+  useTransitionTask,
+  useUpdateTask,
+} from '../../api/hooks';
 import { api, ApiError } from '../../api/client';
 import { LiveLog } from './LiveLog';
 import { DiffViewer } from './DiffViewer';
+import { ConfirmDialog } from '../ConfirmDialog';
+
+const ARCHIVABLE_STATUSES = ['todo', 'plan', 'done'];
 
 const TABS = ['Details', 'Live Log', 'Diff', 'Runs'] as const;
 type Tab = (typeof TABS)[number];
@@ -22,7 +33,10 @@ export function TaskDrawer({
   const transition = useTransitionTask(project.id);
   const updateTask = useUpdateTask(project.id);
   const replan = useReplanTask(project.id);
+  const archiveTask = useArchiveTask(project.id);
+  const deleteTask = useDeleteTask(project.id);
   const [tab, setTab] = useState<Tab>('Details');
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [replanOpen, setReplanOpen] = useState(false);
   const [replanText, setReplanText] = useState('');
@@ -73,6 +87,27 @@ export function TaskDrawer({
       },
     );
   };
+
+  const doArchive = () => {
+    setError(null);
+    archiveTask.mutate(taskId, {
+      onSuccess: () => onClose(),
+      onError: (e) => setError(e instanceof ApiError ? e.message : String(e)),
+    });
+  };
+
+  const doDelete = () => {
+    setError(null);
+    deleteTask.mutate(taskId, {
+      onSuccess: () => onClose(),
+      onError: (e) => {
+        setDeleteOpen(false);
+        setError(e instanceof ApiError ? e.message : String(e));
+      },
+    });
+  };
+
+  const canArchiveOrDelete = !activeRun && ARCHIVABLE_STATUSES.includes(task.status);
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onClick={onClose}>
@@ -246,6 +281,23 @@ export function TaskDrawer({
         <div className="border-t border-neutral-800 p-4">
           {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
           <div className="flex justify-end gap-2">
+            {canArchiveOrDelete && (
+              <>
+                <button
+                  onClick={doArchive}
+                  disabled={archiveTask.isPending}
+                  className="mr-auto rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+                >
+                  🗄 Archive
+                </button>
+                <button
+                  onClick={() => setDeleteOpen(true)}
+                  className="rounded-lg px-4 py-2 text-sm text-red-400 hover:bg-red-900/40"
+                >
+                  Delete
+                </button>
+              </>
+            )}
             {activeRun && (
               <button
                 onClick={() => void api.post(`/api/runs/${activeRun.runId}/cancel`)}
@@ -378,6 +430,22 @@ export function TaskDrawer({
           )}
         </div>
       </div>
+
+      {deleteOpen && (
+        <ConfirmDialog
+          title="Delete task?"
+          message={
+            <>
+              This permanently deletes <span className="font-medium text-neutral-100">{task.title}</span> and cannot be
+              undone. To hide it instead, use Archive.
+            </>
+          }
+          confirmLabel={deleteTask.isPending ? 'Deleting…' : 'Delete'}
+          danger
+          onConfirm={doDelete}
+          onCancel={() => setDeleteOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -82,6 +82,8 @@ export interface Task {
   plan: string;
   createdAt: string;
   updatedAt: string;
+  /** ISO timestamp when the task was archived (soft-hidden from the board); null when active. */
+  archivedAt: string | null;
 }
 
 export type RunRole = 'analyzer' | 'suggester' | 'planner' | 'implementer' | 'reviewer';
@@ -119,6 +121,8 @@ export interface Suggestion {
   source: 'ai' | 'ai_web' | 'manual';
   taskId: string | null;
   createdAt: string;
+  /** ISO timestamp when the suggestion was archived (soft-hidden from the list); null when active. */
+  archivedAt: string | null;
 }
 
 export interface KnowledgeDoc {

@@ -12,7 +12,7 @@ export function SuggestionModal({
 }: {
   suggestion: Suggestion;
   onClose: () => void;
-  onAct: (action: 'accept' | 'reject') => void;
+  onAct: (action: 'accept' | 'reject' | 'archive' | 'unarchive' | 'delete') => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -55,12 +55,50 @@ export function SuggestionModal({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-neutral-800 p-4">
-          {s.status === 'accepted' ? (
-            <span className="mr-auto text-sm text-emerald-400">✓ Accepted — added to TODO</span>
+          {s.archivedAt ? (
+            <>
+              <span className="mr-auto text-sm text-neutral-500">Archived</span>
+              <button
+                onClick={() => onAct('delete')}
+                className="rounded-lg px-4 py-2 text-sm text-red-400 hover:bg-red-900/40"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => onAct('unarchive')}
+                className="rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                Restore
+              </button>
+            </>
+          ) : s.status === 'accepted' ? (
+            <>
+              <span className="mr-auto text-sm text-emerald-400">✓ Accepted — added to TODO</span>
+              <button
+                onClick={() => onAct('archive')}
+                className="rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                🗄 Archive
+              </button>
+            </>
           ) : (
             <>
               {s.status === 'rejected' && (
-                <span className="mr-auto text-sm text-neutral-500">Previously rejected</span>
+                <>
+                  <span className="mr-auto text-sm text-neutral-500">Previously rejected</span>
+                  <button
+                    onClick={() => onAct('delete')}
+                    className="rounded-lg px-4 py-2 text-sm text-red-400 hover:bg-red-900/40"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => onAct('archive')}
+                    className="rounded-lg px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+                  >
+                    🗄 Archive
+                  </button>
+                </>
               )}
               {s.status === 'proposed' && (
                 <button

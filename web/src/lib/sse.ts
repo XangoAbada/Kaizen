@@ -29,7 +29,12 @@ export function connectSse(queryClient: QueryClient): void {
         break;
       case 'task.updated':
         queryClient.invalidateQueries({ queryKey: ['tasks', event.task.projectId] });
+        queryClient.invalidateQueries({ queryKey: ['archivedTasks', event.task.projectId] });
         queryClient.invalidateQueries({ queryKey: ['task', event.task.id] });
+        break;
+      case 'task.deleted':
+        queryClient.invalidateQueries({ queryKey: ['tasks', event.projectId] });
+        queryClient.invalidateQueries({ queryKey: ['archivedTasks', event.projectId] });
         break;
       case 'suggestion.created':
         queryClient.invalidateQueries({ queryKey: ['suggestions', event.suggestion.projectId] });

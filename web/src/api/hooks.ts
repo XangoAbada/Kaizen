@@ -97,6 +97,47 @@ export function useUpdateTask(projectId: string) {
   });
 }
 
+export function useDeleteTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) => api.delete(`/api/tasks/${taskId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] });
+      qc.invalidateQueries({ queryKey: ['archivedTasks', projectId] });
+    },
+  });
+}
+
+export function useArchiveTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) => api.post<Task>(`/api/tasks/${taskId}/archive`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] });
+      qc.invalidateQueries({ queryKey: ['archivedTasks', projectId] });
+    },
+  });
+}
+
+export function useUnarchiveTask(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) => api.post<Task>(`/api/tasks/${taskId}/unarchive`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks', projectId] });
+      qc.invalidateQueries({ queryKey: ['archivedTasks', projectId] });
+    },
+  });
+}
+
+export function useArchivedTasks(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['archivedTasks', projectId],
+    queryFn: () => api.get<Task[]>(`/api/tasks/project/${projectId}?archived=1`),
+    enabled,
+  });
+}
+
 export function useTransitionTask(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -137,6 +178,30 @@ export function useSuggestions(projectId: string) {
   return useQuery({
     queryKey: ['suggestions', projectId],
     queryFn: () => api.get<Suggestion[]>(`/api/suggestions/project/${projectId}`),
+  });
+}
+
+export function useArchiveSuggestion(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<Suggestion>(`/api/suggestions/${id}/archive`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['suggestions', projectId] }),
+  });
+}
+
+export function useUnarchiveSuggestion(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<Suggestion>(`/api/suggestions/${id}/unarchive`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['suggestions', projectId] }),
+  });
+}
+
+export function useDeleteSuggestion(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/api/suggestions/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['suggestions', projectId] }),
   });
 }
 

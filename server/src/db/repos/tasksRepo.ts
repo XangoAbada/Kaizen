@@ -18,6 +18,7 @@ interface Row {
   plan: string;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
 }
 
 function toTask(r: Row): Task {
@@ -37,16 +38,16 @@ function toTask(r: Row): Task {
     plan: r.plan,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    archivedAt: r.archived_at,
   };
 }
 
 export const tasksRepo = {
-  listByProject(projectId: string): Task[] {
-    return (
-      db
-        .prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY status, order_index, created_at')
-        .all(projectId) as unknown as Row[]
-    ).map(toTask);
+  listByProject(projectId: string, opts?: { archived?: boolean }): Task[] {
+    const sql = opts?.archived
+      ? 'SELECT * FROM tasks WHERE project_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC'
+      : 'SELECT * FROM tasks WHERE project_id = ? AND archived_at IS NULL ORDER BY status, order_index, created_at';
+    return (db.prepare(sql).all(projectId) as unknown as Row[]).map(toTask);
   },
 
   get(id: string): Task | null {
@@ -116,6 +117,18 @@ export const tasksRepo = {
       now(),
       id,
     );
+    return this.get(id);
+  },
+
+  archive(id: string): Task | null {
+    if (!this.get(id)) return null;
+    db.prepare('UPDATE tasks SET archived_at = ?, updated_at = ? WHERE id = ?').run(now(), now(), id);
+    return this.get(id);
+  },
+
+  unarchive(id: string): Task | null {
+    if (!this.get(id)) return null;
+    db.prepare('UPDATE tasks SET archived_at = NULL, updated_at = ? WHERE id = ?').run(now(), id);
     return this.get(id);
   },
 

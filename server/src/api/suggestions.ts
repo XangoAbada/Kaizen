@@ -62,3 +62,24 @@ suggestionsRouter.post('/:id/reject', (req, res) => {
   if (suggestion.status !== 'proposed') throw new HttpError(409, `Suggestion is already ${suggestion.status}`);
   res.json(suggestionsRepo.update(suggestion.id, { status: 'rejected' }));
 });
+
+suggestionsRouter.post('/:id/archive', (req, res) => {
+  const suggestion = suggestionsRepo.get(req.params.id as string);
+  if (!suggestion) throw new HttpError(404, 'Suggestion not found');
+  if (suggestion.status === 'proposed')
+    throw new HttpError(409, 'Only accepted or rejected suggestions can be archived');
+  res.json(suggestionsRepo.archive(suggestion.id));
+});
+
+suggestionsRouter.post('/:id/unarchive', (req, res) => {
+  const suggestion = suggestionsRepo.get(req.params.id as string);
+  if (!suggestion) throw new HttpError(404, 'Suggestion not found');
+  res.json(suggestionsRepo.unarchive(suggestion.id));
+});
+
+suggestionsRouter.delete('/:id', (req, res) => {
+  const suggestion = suggestionsRepo.get(req.params.id as string);
+  if (!suggestion) throw new HttpError(404, 'Suggestion not found');
+  suggestionsRepo.delete(suggestion.id);
+  res.status(204).end();
+});

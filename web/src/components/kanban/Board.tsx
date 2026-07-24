@@ -13,8 +13,17 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import type { Project, Task, TaskStatus } from '@kaizen/shared';
 import { TASK_STATUSES, userTargets } from '@kaizen/shared';
-import { useCreateTask, useQueue, useTasks, useTransitionTask } from '../../api/hooks';
+import {
+  useArchivedTasks,
+  useCreateTask,
+  useDeleteTask,
+  useQueue,
+  useTasks,
+  useTransitionTask,
+  useUnarchiveTask,
+} from '../../api/hooks';
 import { ApiError } from '../../api/client';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 const COLUMN_LABELS: Record<TaskStatus, string> = {
   todo: 'TODO',
@@ -31,6 +40,7 @@ export function Board({ project }: { project: Project }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [feedbackFor, setFeedbackFor] = useState<{ task: Task; to: TaskStatus } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
   // Require a small drag distance before a pointer press becomes a drag, so a plain click on a card
   // still fires onClick (opens the TaskDrawer) instead of being swallowed as a drag gesture.
@@ -72,6 +82,14 @@ export function Board({ project }: { project: Project }) {
 
   return (
     <div className="flex h-full flex-col p-4">
+      <div className="mb-2 flex justify-end">
+        <button
+          onClick={() => setArchivedOpen(true)}
+          className="rounded-lg px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+        >
+          🗄 Archived
+        </button>
+      </div>
       <DndContext
         sensors={sensors}
         onDragStart={(e) => setActiveTask((e.active.data.current?.task as Task) ?? null)}
@@ -107,6 +125,86 @@ export function Board({ project }: { project: Project }) {
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm shadow-xl">
           {toast}
         </div>
+      )}
+
+      {archivedOpen && <ArchivedTasksModal project={project} onClose={() => setArchivedOpen(false)} />}
+    </div>
+  );
+}
+
+function ArchivedTasksModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  const { data: tasks, isLoading } = useArchivedTasks(project.id, true);
+  const unarchive = useUnarchiveTask(project.id);
+  const del = useDeleteTask(project.id);
+  const [deleteTask, setDeleteTask] = useState<Task | null>(null);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-neutral-700 bg-neutral-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-neutral-800 p-5">
+          <h2 className="text-lg font-semibold">Archived tasks</h2>
+          <button onClick={onClose} className="rounded px-2 text-neutral-500 hover:bg-neutral-800">
+            ✕
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {isLoading ? (
+            <p className="text-sm text-neutral-500">Loading…</p>
+          ) : (tasks ?? []).length === 0 ? (
+            <div className="rounded-xl border border-dashed border-neutral-700 p-10 text-center text-sm text-neutral-500">
+              No archived tasks.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(tasks ?? []).map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4"
+                >
+                  <div className="min-w-0">
+                    <h3 className="truncate font-medium">{t.title}</h3>
+                    <span className="text-xs uppercase text-neutral-500">{t.status.replace('_', ' ')}</span>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      onClick={() => unarchive.mutate(t.id)}
+                      disabled={unarchive.isPending}
+                      className="rounded-lg px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+                    >
+                      Restore
+                    </button>
+                    <button
+                      onClick={() => setDeleteTask(t)}
+                      className="rounded-lg px-3 py-1.5 text-sm text-red-400 hover:bg-red-900/40"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {deleteTask && (
+        <ConfirmDialog
+          title="Delete task?"
+          message={
+            <>
+              This permanently deletes <span className="font-medium text-neutral-100">{deleteTask.title}</span> and
+              cannot be undone.
+            </>
+          }
+          confirmLabel={del.isPending ? 'Deleting…' : 'Delete'}
+          danger
+          onConfirm={() => del.mutate(deleteTask.id, { onSuccess: () => setDeleteTask(null) })}
+          onCancel={() => setDeleteTask(null)}
+        />
       )}
     </div>
   );

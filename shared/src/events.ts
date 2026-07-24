@@ -38,6 +38,12 @@ export interface TaskUpdatedEvent {
   task: Task;
 }
 
+export interface TaskDeletedEvent {
+  type: 'task.deleted';
+  taskId: string;
+  projectId: string;
+}
+
 export interface SuggestionCreatedEvent {
   type: 'suggestion.created';
   suggestion: Suggestion;
@@ -63,6 +69,7 @@ export type KaizenEvent =
   | RunOutputEvent
   | RunFinishedEvent
   | TaskUpdatedEvent
+  | TaskDeletedEvent
   | SuggestionCreatedEvent
   | KnowledgeUpdatedEvent
   | ProjectUpdatedEvent

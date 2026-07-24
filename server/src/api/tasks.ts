@@ -14,7 +14,8 @@ import { bus } from '../events/bus.js';
 export const tasksRouter = Router();
 
 tasksRouter.get('/project/:projectId', (req, res) => {
-  res.json(tasksRepo.listByProject(req.params.projectId as string));
+  const archived = req.query.archived === '1';
+  res.json(tasksRepo.listByProject(req.params.projectId as string, { archived }));
 });
 
 const createSchema = z.object({
@@ -64,10 +65,30 @@ tasksRouter.patch('/:id', (req, res) => {
   res.json(task);
 });
 
+tasksRouter.post('/:id/archive', (req, res) => {
+  const id = req.params.id as string;
+  if (!tasksRepo.get(id)) throw new HttpError(404, 'Task not found');
+  if (taskHasActiveRun(id)) throw new HttpError(409, 'Task has an active run — cancel it first');
+  const task = tasksRepo.archive(id)!;
+  bus.publish({ type: 'task.updated', task });
+  res.json(task);
+});
+
+tasksRouter.post('/:id/unarchive', (req, res) => {
+  const id = req.params.id as string;
+  if (!tasksRepo.get(id)) throw new HttpError(404, 'Task not found');
+  const task = tasksRepo.unarchive(id)!;
+  bus.publish({ type: 'task.updated', task });
+  res.json(task);
+});
+
 tasksRouter.delete('/:id', (req, res) => {
   const id = req.params.id as string;
+  const task = tasksRepo.get(id);
+  if (!task) throw new HttpError(404, 'Task not found');
   if (taskHasActiveRun(id)) throw new HttpError(409, 'Task has an active run — cancel it first');
   tasksRepo.delete(id);
+  bus.publish({ type: 'task.deleted', taskId: id, projectId: task.projectId });
   res.status(204).end();
 });
 
