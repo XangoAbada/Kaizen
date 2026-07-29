@@ -186,7 +186,16 @@ export interface ReviewerFinding {
   suggested_fix: string;
 }
 
+export interface QueuedRunInfo {
+  runId: string;
+  projectId: string;
+  role: RunRole;
+  taskId: string | null;
+  /** Title of the task this run belongs to; null for project-level runs (analyzer, suggester, brainstormer). */
+  taskTitle: string | null;
+}
+
 export interface QueueState {
-  running: { runId: string; projectId: string; role: RunRole; taskId: string | null }[];
-  queued: { runId: string; projectId: string; role: RunRole; taskId: string | null }[];
+  running: QueuedRunInfo[];
+  queued: QueuedRunInfo[];
 }

@@ -1,7 +1,8 @@
 import path from 'node:path';
-import type { QueueState, RunRole, TaskRun } from '@kaizen/shared';
+import type { QueuedRunInfo, QueueState, RunRole, TaskRun } from '@kaizen/shared';
 import { config, runsDir } from '../config.js';
 import { runsRepo } from '../db/repos/runsRepo.js';
+import { tasksRepo } from '../db/repos/tasksRepo.js';
 import { appSettingsRepo } from '../db/repos/appSettingsRepo.js';
 import { projectsRepo } from '../db/repos/projectsRepo.js';
 import { bus } from '../events/bus.js';
@@ -65,20 +66,20 @@ function activeCountForProject(projectId: string): number {
   return runningCountForProject(projectId) + reservedCount(projectId);
 }
 
+function runInfo(spec: RunSpec): QueuedRunInfo {
+  return {
+    runId: spec.runId,
+    projectId: spec.projectId,
+    role: spec.role,
+    taskId: spec.taskId,
+    taskTitle: spec.taskId ? (tasksRepo.get(spec.taskId)?.title ?? null) : null,
+  };
+}
+
 export function queueState(): QueueState {
   return {
-    running: [...running.values()].map((a) => ({
-      runId: a.spec.runId,
-      projectId: a.spec.projectId,
-      role: a.spec.role,
-      taskId: a.spec.taskId,
-    })),
-    queued: queued.map((s) => ({
-      runId: s.runId,
-      projectId: s.projectId,
-      role: s.role,
-      taskId: s.taskId,
-    })),
+    running: [...running.values()].map((a) => runInfo(a.spec)),
+    queued: queued.map(runInfo),
   };
 }
 

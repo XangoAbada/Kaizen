@@ -14,7 +14,12 @@ type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { data: project } = useProject(projectId!);
+  // `key` remounts on project switch, so every tab starts fresh instead of keeping the previous project's local state.
+  return <ProjectView key={projectId} projectId={projectId!} />;
+}
+
+function ProjectView({ projectId }: { projectId: string }) {
+  const { data: project } = useProject(projectId);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = TABS.find((t) => t === searchParams.get('tab')) ?? 'Kanban';
   const [tab, setTab] = useState<Tab>(initialTab);

@@ -91,7 +91,7 @@ function ProjectCard({ id }: { id: string }) {
   );
 }
 
-function AddProjectDialog({ onClose }: { onClose: () => void }) {
+export function AddProjectDialog({ onClose }: { onClose: () => void }) {
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);

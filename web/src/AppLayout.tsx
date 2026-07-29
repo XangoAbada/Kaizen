@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router-dom';
 import { useQueue } from './api/hooks';
+import { ProjectSidebar } from './components/ProjectSidebar';
 
 export function AppLayout() {
   const { data: queue } = useQueue();
@@ -26,9 +27,12 @@ export function AppLayout() {
           </Link>
         </div>
       </header>
-      <main className="min-h-0 flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      <div className="flex min-h-0 flex-1">
+        <ProjectSidebar />
+        <main className="min-h-0 flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
