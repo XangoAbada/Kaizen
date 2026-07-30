@@ -6,6 +6,12 @@ import { useRunLogStore } from '../stores/runLogStore';
 export function connectSse(queryClient: QueryClient): void {
   const source = new EventSource('/api/events');
 
+  // Every event is push-only and `refetchOnWindowFocus` is off, so anything that happened while the
+  // stream was down would stay invisible until a component remounts. Resync on (re)connect.
+  source.onopen = () => {
+    void queryClient.invalidateQueries();
+  };
+
   source.onmessage = (msg) => {
     let event: KaizenEvent;
     try {

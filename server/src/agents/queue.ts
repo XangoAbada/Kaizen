@@ -21,6 +21,8 @@ export interface RunSpec {
   projectId: string;
   taskId: string | null;
   role: RunRole;
+  /** What the run is scoped to (e.g. a knowledge section filename) — surfaced to the UI via QueuedRunInfo. */
+  target?: string | null;
   /** Called right before the process starts, so prompts see fresh state. */
   prepare: () => Promise<PreparedRun> | PreparedRun;
 }
@@ -73,6 +75,7 @@ function runInfo(spec: RunSpec): QueuedRunInfo {
     role: spec.role,
     taskId: spec.taskId,
     taskTitle: spec.taskId ? (tasksRepo.get(spec.taskId)?.title ?? null) : null,
+    target: spec.target ?? null,
   };
 }
 
@@ -91,6 +94,7 @@ export function enqueueRun(input: {
   projectId: string;
   taskId?: string | null;
   role: RunRole;
+  target?: string | null;
   prepare: RunSpec['prepare'];
 }): TaskRun {
   const run = runsRepo.create({ projectId: input.projectId, taskId: input.taskId ?? null, role: input.role });
@@ -99,6 +103,7 @@ export function enqueueRun(input: {
     projectId: input.projectId,
     taskId: input.taskId ?? null,
     role: input.role,
+    target: input.target ?? null,
     prepare: input.prepare,
   });
   publishQueue();

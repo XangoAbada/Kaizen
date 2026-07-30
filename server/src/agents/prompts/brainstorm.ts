@@ -1,14 +1,7 @@
+import { KNOWLEDGE_SECTIONS } from '@kaizen/shared';
 import { preamble, jsonSchemaBlock } from './common.js';
 
-/** Fixed greenfield knowledge-base files the brainstormer writes to (a light PRD/design doc). */
-export const BRAINSTORM_FILES = [
-  '00-overview.md',
-  '10-users.md',
-  '20-features.md',
-  '30-tech-stack.md',
-  '40-scope.md',
-  '50-open-questions.md',
-] as const;
+const sectionList = KNOWLEDGE_SECTIONS.map((s) => `- \`${s.filename}\` — ${s.brief}`).join('\n');
 
 export function brainstormPrompt(input: {
   projectName: string;
@@ -17,8 +10,6 @@ export function brainstormPrompt(input: {
   currentDocs: { filename: string; content: string }[];
   language?: string;
 }): string {
-  const fileList = BRAINSTORM_FILES.map((f) => `- ${f}`).join('\n');
-
   const conversation = input.transcript.length
     ? input.transcript
         .map((m) => `**${m.role === 'user' ? 'User' : 'You (assistant)'}:** ${m.text}`)
@@ -37,10 +28,11 @@ You are helping a user brainstorm a BRAND-NEW application called "${input.projec
 Read the conversation so far and the current knowledge base, then WRITE or UPDATE the markdown files below so they capture everything decided so far. This is an iterative process: refine and extend the existing content rather than throwing it away, and fold in whatever the latest user message adds or changes.
 
 ## Rules
-- Base the content ONLY on what the user has actually said or clearly implied. Do NOT invent features, users, or scope the user has not asked for.
-- When something is undecided, DON'T guess — record it as a bullet in \`50-open-questions.md\` so the user can weigh in next round.
+- Base the content ONLY on what the user has actually said or clearly implied. Do NOT invent features, users, scope or technology the user has not asked for.
+- The knowledge base records DECISIONS, not options. Anything still undecided does NOT go into a file — raise it in \`open_questions\` in your final output instead, so the user can answer it next round.
+- Write a file only once the conversation gives you real content for it. Several sections describe an existing codebase (\`10-screens.md\`, \`40-architecture.md\`, \`50-code-map.md\`, \`60-api-surface.md\`, \`80-integrations.md\`, \`90-run-and-config.md\`, \`95-testing.md\`) — for an app with no code these stay empty until the user has decided something concrete about them. Always keep \`00-overview.md\` present.
 - Keep it light: this is early-stage thinking, not a 40-page spec. Concise bullets over long prose.
-- Move from abstract to concrete: problem/vision → users → features → tech → scope. A later file may be sparse early on; that's fine.
+- Move from abstract to concrete: problem/vision → features → data → technology.
 
 ## Conversation so far
 ${conversation}
@@ -50,15 +42,7 @@ ${current}
 
 ## Output files
 Write these markdown files into the knowledge directory: ${input.knowledgeDirAbs}
-${fileList}
-
-Suggested contents:
-- \`00-overview.md\` — the problem, the vision, goals and how success is measured.
-- \`10-users.md\` — target users / personas and what they need.
-- \`20-features.md\` — core features and scope; separate MVP from later.
-- \`30-tech-stack.md\` — proposed stack and a short architecture sketch.
-- \`40-scope.md\` — non-goals, constraints and assumptions.
-- \`50-open-questions.md\` — unresolved decisions the user should confirm.
+${sectionList}
 
 Rules for every file:
 - Start with front-matter:
@@ -68,7 +52,7 @@ summary: <one-line summary of the file's content>
 ---
 - Then a single top-level heading (# H1), then \`##\`/\`###\` sections. Prefer bulleted lists over walls of text.
 - Wrap tech names, commands and config keys in \`inline code\`. Use GitHub-flavored markdown tables where they fit.
-- Only write files that have real content yet; still, always keep \`00-overview.md\` present.
+- Never add a changelog or a "what changed this round" section.
 
 ${jsonSchemaBlock(`{"summary": "one short paragraph telling the user what you captured/changed this round and what you still need from them", "open_questions": ["question the user should answer next"]}`)}`;
 }

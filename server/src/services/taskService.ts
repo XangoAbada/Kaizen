@@ -4,7 +4,7 @@ import { tasksRepo } from '../db/repos/tasksRepo.js';
 import { taskEventsRepo } from '../db/repos/taskEventsRepo.js';
 import { projectsRepo } from '../db/repos/projectsRepo.js';
 import { bus } from '../events/bus.js';
-import { startImplementation, startPlanning } from '../agents/orchestrator.js';
+import { startImplementation, startKnowledgeUpdate, startPlanning } from '../agents/orchestrator.js';
 import { taskHasActiveRun } from '../agents/queue.js';
 import { gitService } from './gitService.js';
 import { HttpError } from './projectService.js';
@@ -85,6 +85,14 @@ export const taskService = {
         warning = 'Working tree is dirty — the task diff will include pre-existing changes';
       }
       await startImplementation(taskId);
+    } else if (to === 'done' && projectsRepo.get(task.projectId)?.settings.updateKnowledgeOnDone) {
+      // Fire-and-forget: the task is already approved and merged, so a queue or git failure here
+      // must never undo that. Runs after the merge block above so the diff comes from the merged tree.
+      try {
+        startKnowledgeUpdate(updated);
+      } catch (e) {
+        console.error('[knowledge] post-done update could not be started:', e);
+      }
     }
 
     return { task: tasksRepo.get(taskId)!, warning };

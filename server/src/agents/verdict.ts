@@ -1,26 +1,42 @@
 import { z } from 'zod';
 
-/** Extract the LAST fenced ```json block from text and parse it. */
+/**
+ * Extract the LAST fenced ```json block from text and parse it.
+ *
+ * A non-greedy `...*?```` would stop at the first ``` after the opener — and agents routinely
+ * write a literal ``` inside a JSON string value, which silently truncated the block and threw
+ * the whole result away. So: walk openers last→first and, for each, try the LONGEST closing
+ * candidate first, returning the first slice that actually parses.
+ */
 export function extractLastJsonBlock(text: string): unknown | null {
-  const matches = [...text.matchAll(/```json\s*\r?\n([\s\S]*?)```/g)];
-  const last = matches.at(-1);
-  if (!last || !last[1]) {
-    // fallback: maybe the whole text is bare JSON
-    const trimmed = text.trim();
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+  const openers = [...text.matchAll(/```json[ \t]*\r?\n/g)];
+  const fences = [...text.matchAll(/```/g)].map((m) => m.index);
+
+  for (let i = openers.length - 1; i >= 0; i--) {
+    const opener = openers[i]!;
+    const start = opener.index + opener[0].length;
+    // `text.length` first covers output truncated before the closing fence.
+    // ponytail: O(openers × fences) — a handful of each in real agent output.
+    const candidates = [text.length, ...fences.filter((f) => f >= start).reverse()];
+    for (const end of candidates) {
       try {
-        return JSON.parse(trimmed);
+        return JSON.parse(text.slice(start, end));
       } catch {
-        return null;
+        // try a shorter candidate
       }
     }
-    return null;
   }
-  try {
-    return JSON.parse(last[1]);
-  } catch {
-    return null;
+
+  // fallback: maybe the whole text is bare JSON
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
   }
+  return null;
 }
 
 export const reviewerVerdictSchema = z.object({

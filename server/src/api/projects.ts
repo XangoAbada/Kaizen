@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { KNOWLEDGE_FILENAMES } from '@kaizen/shared';
 import { projectsRepo } from '../db/repos/projectsRepo.js';
 import { runsRepo } from '../db/repos/runsRepo.js';
 import { projectService, HttpError } from '../services/projectService.js';
@@ -41,6 +42,7 @@ const patchSchema = z.object({
       outputLanguage: z.string().min(1),
       maxConcurrentRuns: z.number().int().min(1).max(10),
       autoCreateBranch: z.boolean(),
+      updateKnowledgeOnDone: z.boolean().default(true),
     })
     .optional(),
 });
@@ -64,14 +66,24 @@ projectsRouter.delete('/:id', (req, res) => {
   res.status(204).end();
 });
 
-const analyzeSchema = z.object({ refresh: z.boolean().optional() });
+const analyzeSchema = z.object({
+  refresh: z.boolean().optional(),
+  /** Regenerate just this knowledge section instead of the whole base. */
+  file: z.string().optional(),
+  /** Free-text steer for a single-section run (e.g. "drop the part about X, it was removed"). */
+  instruction: z.string().max(2000).optional(),
+});
 
 projectsRouter.post('/:id/analyze', (req, res) => {
   const project = projectsRepo.get(req.params.id as string);
   if (!project) throw new HttpError(404, 'Project not found');
   if (project.status === 'analyzing') throw new HttpError(409, 'Analysis already in progress');
-  const { refresh } = analyzeSchema.parse(req.body ?? {});
-  const run = startAnalysis(project, refresh ?? false);
+  const { refresh, file, instruction } = analyzeSchema.parse(req.body ?? {});
+  // The filename reaches a prompt and the filesystem — only known sections are allowed.
+  if (file !== undefined && !KNOWLEDGE_FILENAMES.includes(file)) {
+    throw new HttpError(400, 'Unknown knowledge section');
+  }
+  const run = startAnalysis(project, refresh ?? false, { file, instruction });
   res.status(202).json({ runId: run.id });
 });
 

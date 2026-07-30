@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Project, Suggestion } from '@kaizen/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSuggestions, useQueue } from '../../api/hooks';
+import { useSuggestions, useQueue, useProjectRuns } from '../../api/hooks';
 import { api, ApiError } from '../../api/client';
 import { LiveLog } from '../task/LiveLog';
 import { SuggestionModal } from './SuggestionModal';
@@ -10,18 +10,25 @@ import { ConfirmDialog } from '../ConfirmDialog';
 export function SuggestionsTab({ project }: { project: Project }) {
   const { data: suggestions } = useSuggestions(project.id);
   const { data: queue } = useQueue();
+  const { data: runs } = useProjectRuns(project.id);
   const qc = useQueryClient();
   const [filter, setFilter] = useState<'proposed' | 'accepted' | 'rejected' | 'archived'>('proposed');
   const [genOpen, setGenOpen] = useState(false);
-  const [genRunId, setGenRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Suggestion | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Suggestion | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState<'accept' | 'reject' | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const suggesterRunning =
-    queue && [...queue.running, ...queue.queued].some((r) => r.projectId === project.id && r.role === 'suggester');
+  // Derived from the queue rather than local state, so the live log survives a project/tab switch.
+  const suggesterRun =
+    queue && [...queue.running, ...queue.queued].find((r) => r.projectId === project.id && r.role === 'suggester');
+  // Most recent finished suggester run — surfaces "the run ended but nothing was saved".
+  const lastSuggesterRun = (runs ?? []).find((r) => r.role === 'suggester' && !!r.finishedAt);
+  const runProblem =
+    lastSuggesterRun && !suggesterRun && (lastSuggesterRun.error || lastSuggesterRun.status !== 'succeeded')
+      ? (lastSuggesterRun.error ?? `Last generation ended with status “${lastSuggesterRun.status}”.`)
+      : null;
   const filtered = (suggestions ?? []).filter((s) =>
     filter === 'archived' ? !!s.archivedAt : s.status === filter && !s.archivedAt,
   );
@@ -90,19 +97,25 @@ export function SuggestionsTab({ project }: { project: Project }) {
           )}
           <button
             onClick={() => setGenOpen(true)}
-            disabled={!!suggesterRunning}
+            disabled={!!suggesterRun}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
           >
-            {suggesterRunning ? 'Generating…' : '✨ Generate suggestions'}
+            {suggesterRun ? 'Generating…' : '✨ Generate suggestions'}
           </button>
         </div>
       </div>
 
       {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
-      {genRunId && suggesterRunning && (
+      {runProblem && (
+        <p className="mb-3 rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+          {runProblem}
+        </p>
+      )}
+
+      {suggesterRun && (
         <div className="mb-4 h-64 overflow-hidden rounded-lg">
-          <LiveLog runId={genRunId} live />
+          <LiveLog runId={suggesterRun.runId} live />
         </div>
       )}
 
@@ -182,14 +195,7 @@ export function SuggestionsTab({ project }: { project: Project }) {
       )}
 
       {genOpen && (
-        <GenerateDialog
-          projectId={project.id}
-          onClose={() => setGenOpen(false)}
-          onStarted={(runId) => {
-            setGenRunId(runId);
-            setGenOpen(false);
-          }}
-        />
+        <GenerateDialog projectId={project.id} onClose={() => setGenOpen(false)} onStarted={() => setGenOpen(false)} />
       )}
     </div>
   );
@@ -202,8 +208,9 @@ function GenerateDialog({
 }: {
   projectId: string;
   onClose: () => void;
-  onStarted: (runId: string) => void;
+  onStarted: () => void;
 }) {
+  const qc = useQueryClient();
   const [useWeb, setUseWeb] = useState(false);
   const [focus, setFocus] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -211,11 +218,13 @@ function GenerateDialog({
   const start = async () => {
     setError(null);
     try {
-      const res = await api.post<{ runId: string }>(`/api/projects/${projectId}/suggest`, {
+      await api.post(`/api/projects/${projectId}/suggest`, {
         useWebResearch: useWeb,
         focus: focus.trim() || undefined,
       });
-      onStarted(res.runId);
+      // The live log renders off the queue query — refresh it instead of waiting for the SSE push.
+      void qc.invalidateQueries({ queryKey: ['queue'] });
+      onStarted();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }

@@ -23,6 +23,8 @@ export interface ProjectSettings {
   maxConcurrentRuns: number;
   /** run each task in its own git branch + worktree; forced on when maxConcurrentRuns > 1 */
   autoCreateBranch: boolean;
+  /** after a task reaches `done`, run an agent that folds what changed into the knowledge base */
+  updateKnowledgeOnDone: boolean;
 }
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
@@ -32,6 +34,7 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   outputLanguage: 'en',
   maxConcurrentRuns: 1,
   autoCreateBranch: false,
+  updateKnowledgeOnDone: true,
 };
 
 /** Global, app-level settings (not scoped to a project). */
@@ -193,6 +196,8 @@ export interface QueuedRunInfo {
   taskId: string | null;
   /** Title of the task this run belongs to; null for project-level runs (analyzer, suggester, brainstormer). */
   taskTitle: string | null;
+  /** What the run is scoped to — a knowledge section filename for per-section analysis, null otherwise. */
+  target: string | null;
 }
 
 export interface QueueState {

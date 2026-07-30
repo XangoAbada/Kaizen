@@ -133,6 +133,20 @@ export function ProjectSettingsTab({ project }: { project: Project }) {
         {!project.isGit && ' Requires a git repository.'}
       </p>
 
+      <label className="mb-1 flex items-center gap-2 text-sm text-neutral-400">
+        <input
+          type="checkbox"
+          checked={settings.updateKnowledgeOnDone}
+          onChange={(e) => set('updateKnowledgeOnDone', e.target.checked)}
+          className="h-4 w-4 accent-emerald-500"
+        />
+        Update the knowledge base when a task is done
+      </label>
+      <p className="mb-4 text-xs text-neutral-500">
+        After you approve a task, an agent folds what changed into the knowledge sections it affects.
+        Costs one extra run per completed task.
+      </p>
+
       {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
       <div className="flex items-center gap-3">
         <button

@@ -1,21 +1,23 @@
 import type { Project, RunStatus, Task, TaskRun } from '@kaizen/shared';
+import { KNOWLEDGE_FILENAMES } from '@kaizen/shared';
 import { knowledgeDir, worktreeDir } from '../config.js';
 import { projectsRepo } from '../db/repos/projectsRepo.js';
 import { tasksRepo } from '../db/repos/tasksRepo.js';
 import { taskEventsRepo } from '../db/repos/taskEventsRepo.js';
 import { suggestionsRepo } from '../db/repos/suggestionsRepo.js';
+import { runsRepo } from '../db/repos/runsRepo.js';
 import { knowledgeRepo } from '../db/repos/knowledgeRepo.js';
 import { brainstormRepo } from '../db/repos/brainstormRepo.js';
 import { bus } from '../events/bus.js';
 import { gitService } from '../services/gitService.js';
 import { knowledgeService } from '../services/knowledgeService.js';
 import { enqueueRun, taskHasActiveRun } from './queue.js';
-import { analyzerPrompt } from './prompts/analyzer.js';
+import { analyzerPrompt, knowledgeSectionPrompt, knowledgeUpdatePrompt } from './prompts/analyzer.js';
 import { suggesterPrompt } from './prompts/suggester.js';
 import { plannerPrompt } from './prompts/planner.js';
 import { implementerPrompt } from './prompts/implementer.js';
 import { reviewerPrompt } from './prompts/reviewer.js';
-import { brainstormPrompt, BRAINSTORM_FILES } from './prompts/brainstorm.js';
+import { brainstormPrompt } from './prompts/brainstorm.js';
 import {
   parseVerdict,
   plannerOutputSchema,
@@ -25,8 +27,10 @@ import {
 } from './verdict.js';
 
 const INLINE_DOC_CAP_BYTES = 12_000;
-const IMPLEMENTER_INLINE_DOCS = ['00-overview.md', '30-tech-stack.md', '40-entry-points.md'];
-const SUGGESTER_INLINE_DOCS = ['00-overview.md', '20-features.md', '60-improvement-notes.md'];
+const IMPLEMENTER_INLINE_DOCS = ['00-overview.md', '50-code-map.md', '70-tech-stack.md'];
+const SUGGESTER_INLINE_DOCS = ['00-overview.md', '20-features.md', '40-architecture.md'];
+/** Cap on the diff handed to the post-`done` knowledge update. */
+const KNOWLEDGE_DIFF_CAP = 30_000;
 
 function publishTask(task: Task): void {
   bus.publish({ type: 'task.updated', task });
@@ -180,28 +184,89 @@ function startReview(task: Task, implementerSummary: string): TaskRun {
   });
 }
 
-export function startAnalysis(project: Project, refresh: boolean): TaskRun {
+/**
+ * Analyze the project into its knowledge base. With `opts.file` only that one section is
+ * rewritten (optionally steered by `opts.instruction`); otherwise the whole base is rebuilt.
+ */
+export function startAnalysis(
+  project: Project,
+  refresh: boolean,
+  opts: { file?: string; instruction?: string } = {},
+): TaskRun {
+  const file = opts.file;
   projectsRepo.update(project.id, { status: 'analyzing' });
   bus.publish({ type: 'project.updated', projectId: project.id });
   return enqueueRun({
     projectId: project.id,
     role: 'analyzer',
+    target: file ?? null,
     prepare: () => ({
       cwd: project.path,
       permissionMode: 'acceptEdits',
       model: project.settings.model,
       addDirs: [knowledgeDir(project.id)],
-      prompt: analyzerPrompt({
-        projectName: project.name,
-        projectPath: project.path,
-        knowledgeDirAbs: knowledgeDir(project.id),
-        refresh,
-        existingDocs: knowledgeRepo
-          .listByProject(project.id)
-          .map((d) => ({ filename: d.filename, summary: d.summary })),
-        language: project.settings.outputLanguage,
-      }),
+      prompt: file
+        ? knowledgeSectionPrompt({
+            projectName: project.name,
+            projectPath: project.path,
+            knowledgeDirAbs: knowledgeDir(project.id),
+            filename: file,
+            currentContent: knowledgeService.readDoc(project.id, file),
+            otherDocs: otherDocs(project.id, [file]),
+            instruction: opts.instruction,
+            language: project.settings.outputLanguage,
+          })
+        : analyzerPrompt({
+            projectName: project.name,
+            projectPath: project.path,
+            knowledgeDirAbs: knowledgeDir(project.id),
+            refresh,
+            existingDocs: knowledgeRepo
+              .listByProject(project.id)
+              .map((d) => ({ filename: d.filename, summary: d.summary })),
+            language: project.settings.outputLanguage,
+          }),
     }),
+  });
+}
+
+/** Fold a just-completed task's changes into the knowledge sections they affect. */
+export function startKnowledgeUpdate(task: Task): TaskRun {
+  const project = projectsRepo.get(task.projectId);
+  if (!project) throw new Error(`project ${task.projectId} not found`);
+  projectsRepo.update(project.id, { status: 'analyzing' });
+  bus.publish({ type: 'project.updated', projectId: project.id });
+
+  return enqueueRun({
+    projectId: project.id,
+    taskId: task.id,
+    role: 'analyzer',
+    prepare: async () => {
+      // ponytail: without git (or without a baseCommit) this is empty and the agent falls back to
+      // the task text — good enough; a richer change record would mean tracking edits ourselves.
+      const diff = project.isGit
+        ? (await gitService.diffSince(project.path, task.baseCommit)).slice(0, KNOWLEDGE_DIFF_CAP)
+        : '';
+      return {
+        cwd: project.path,
+        permissionMode: 'acceptEdits',
+        model: project.settings.model,
+        addDirs: [knowledgeDir(project.id)],
+        prompt: knowledgeUpdatePrompt({
+          projectName: project.name,
+          projectPath: project.path,
+          knowledgeDirAbs: knowledgeDir(project.id),
+          taskTitle: task.title,
+          taskDescription: task.description,
+          plan: task.plan,
+          diff,
+          docs: knowledgeRepo
+            .listByProject(project.id)
+            .map((d) => ({ filename: d.filename, summary: d.summary })),
+          language: project.settings.outputLanguage,
+        }),
+      };
+    },
   });
 }
 
@@ -246,7 +311,7 @@ export function startBrainstorm(project: Project): TaskRun {
         projectName: project.name,
         knowledgeDirAbs: knowledgeDir(project.id),
         transcript: brainstormRepo.listByProject(project.id).map((m) => ({ role: m.role, text: m.text })),
-        currentDocs: inlineDocs(project.id, [...BRAINSTORM_FILES]),
+        currentDocs: inlineDocs(project.id, KNOWLEDGE_FILENAMES),
         language: project.settings.outputLanguage,
       }),
     }),
@@ -340,24 +405,41 @@ function handleReviewerFinished(taskId: string, status: RunStatus, resultSummary
   }
 }
 
-function handleAnalyzerFinished(projectId: string, status: RunStatus): void {
+function handleAnalyzerFinished(projectId: string, status: RunStatus, taskId: string | null): void {
   const project = projectsRepo.get(projectId);
   if (!project) return;
+
+  // Always pick up whatever landed on disk — a partial or failed run may still have written files.
+  knowledgeService.indexProject(projectId);
+  bus.publish({ type: 'knowledge.updated', projectId });
+
   if (status === 'succeeded') {
-    knowledgeService.indexProject(projectId);
-    projectsRepo.update(projectId, { status: 'idle', lastAnalyzedAt: new Date().toISOString() });
-    bus.publish({ type: 'knowledge.updated', projectId });
+    // Only a full/section analysis marks the project as freshly analyzed; a post-`done` update doesn't.
+    projectsRepo.update(projectId, {
+      status: 'idle',
+      ...(taskId ? {} : { lastAnalyzedAt: new Date().toISOString() }),
+    });
   } else {
-    projectsRepo.update(projectId, { status: status === 'canceled' ? 'idle' : 'error' });
+    // A background update failing must not brand the whole project as broken.
+    projectsRepo.update(projectId, { status: status === 'canceled' || taskId ? 'idle' : 'error' });
   }
   bus.publish({ type: 'project.updated', projectId });
 }
 
-function handleSuggesterFinished(projectId: string, status: RunStatus, resultSummary: string | null): void {
-  if (status !== 'succeeded') return;
+function handleSuggesterFinished(
+  projectId: string,
+  runId: string,
+  status: RunStatus,
+  resultSummary: string | null,
+): void {
+  // Attempt the parse even when the run failed or timed out — it may still carry a usable result.
   const parsed = parseVerdict(suggestionsOutputSchema, resultSummary ?? '');
-  if (!parsed) {
-    console.warn(`[orchestrator] suggester output for project ${projectId} could not be parsed`);
+  if (!parsed?.length) {
+    if (status === 'canceled') return;
+    // Surface the loss on the run row (ActivityTab renders it) instead of a silent console.warn.
+    runsRepo.update(runId, {
+      error: 'Suggester finished but no suggestions could be read from its output — none were saved.',
+    });
     return;
   }
   const existing = suggestionsRepo.titles(projectId).map((t) => t.toLowerCase());
@@ -422,9 +504,9 @@ export function initOrchestrator(): void {
       } else if (event.role === 'reviewer' && event.taskId) {
         handleReviewerFinished(event.taskId, event.status, event.resultSummary, event.error);
       } else if (event.role === 'analyzer') {
-        handleAnalyzerFinished(event.projectId, event.status);
+        handleAnalyzerFinished(event.projectId, event.status, event.taskId);
       } else if (event.role === 'suggester') {
-        handleSuggesterFinished(event.projectId, event.status, event.resultSummary);
+        handleSuggesterFinished(event.projectId, event.runId, event.status, event.resultSummary);
       } else if (event.role === 'brainstormer') {
         handleBrainstormerFinished(event.projectId, event.status, event.resultSummary);
       }

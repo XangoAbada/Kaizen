@@ -208,18 +208,21 @@ export function useDeleteSuggestion(projectId: string) {
   });
 }
 
-export function useKnowledge(projectId: string) {
+/** `pollMs` keeps the section list fresh while an agent is writing files (the GET re-indexes the dir). */
+export function useKnowledge(projectId: string, pollMs?: number) {
   return useQuery({
     queryKey: ['knowledge', projectId],
     queryFn: () => api.get<KnowledgeDoc[]>(`/api/knowledge/project/${projectId}`),
+    refetchInterval: pollMs,
   });
 }
 
-export function useKnowledgeDoc(docId: string | null) {
+export function useKnowledgeDoc(docId: string | null, pollMs?: number) {
   return useQuery({
     queryKey: ['knowledgeDoc', docId],
     queryFn: () => api.get<{ meta: KnowledgeDoc; content: string }>(`/api/knowledge/${docId}`),
     enabled: !!docId,
+    refetchInterval: pollMs,
   });
 }
 

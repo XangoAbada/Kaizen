@@ -11,7 +11,7 @@ export const config = {
   maxConcurrentRuns: Number(process.env.KAIZEN_MAX_CONCURRENT ?? 2),
   /** Per-role run timeouts in milliseconds. */
   timeouts: {
-    analyzer: 30 * 60_000,
+    analyzer: 45 * 60_000,
     suggester: 15 * 60_000,
     planner: 15 * 60_000,
     implementer: 20 * 60_000,
@@ -19,7 +19,7 @@ export const config = {
     brainstormer: 15 * 60_000,
   },
   maxTurns: {
-    analyzer: 120,
+    analyzer: 180,
     suggester: 60,
     planner: 60,
     implementer: 150,
